@@ -74,3 +74,7 @@ The synthetic regression suite runs without Pester or other modules:
 ```powershell
 ./tests/obfuscatefile.Tests.ps1
 ```
+
+## Configuration Manager (MECM)
+
+See the [MECM toolkit](mecm/README.md) for offline preparation, native site installation, first patch deployment, and routine operations. Its Windows PowerShell requirements are documented separately.
