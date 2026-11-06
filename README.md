@@ -78,3 +78,13 @@ The synthetic regression suite runs without Pester or other modules:
 ## Configuration Manager (MECM)
 
 See the [MECM toolkit](mecm/README.md) for offline preparation, native site installation, first patch deployment, and routine operations. Its Windows PowerShell requirements are documented separately.
+
+## Additional administration tools
+
+- [Linux tools](linux/README.md): ClamAV discovery and illustrative local-account discovery/remediation.
+- [Windows tools](windows/README.md): Defender updates, Nessus plugin downloads, and Splunk Forwarder installation/removal.
+- [Attachment validation](docs/attachment-validation.md): source mapping, sanitization, checks, and remaining lab work.
+
+Keep script-specific guides with their scripts in this repository. Examples are
+placeholders; supply approved local values privately at runtime. Never commit
+credentials, actual network identifiers, inventories, installers, or runtime reports.

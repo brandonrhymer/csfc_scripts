@@ -1,0 +1,13 @@
+# Keep operational inputs, packages and output outside the repository.
+__pycache__/
+*.pyc
+*.msi
+*.exe
+*.tar.gz
+*.partial
+systems.txt
+inventory.csv
+inventory.txt
+Results/
+private/
+latest.json
