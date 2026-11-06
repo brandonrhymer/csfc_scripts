@@ -35,10 +35,17 @@ version was substituted. Sanitized versions are the repository deliverables.
 
 ## Checks
 
-Completed in the preparation environment: seven Python tests (including embedded
+Completed in the preparation environment: twelve Python tests (including embedded
 Bash parsing), PowerShell parsing and isolated Defender helper checks with
 PowerShell 7.4.6 on Linux, and staged-content privacy/documentation review.
 Windows PowerShell 5.1 and live-system checks have not been performed.
+
+Follow-up review fixes are covered by regressions for empty ClamAV configuration
+lists with stdin held open, configuration filenames containing spaces, partial or
+unknown remediation results, nonzero SSH exits, and failing process exit codes
+without automatic apply retries. ClamAV config queries use quoted arrays and an
+explicit empty input file. Remediation requires its expected terminal result plus
+a successful SSH exit; otherwise completion is unverified or failed.
 
 Run `python3 tests/test_admin_tools.py` for Python syntax, embedded Bash syntax,
 isolated emitter/decoder and assessment checks, and synthetic inventory checks.

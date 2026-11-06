@@ -108,14 +108,14 @@ done
 emit "service_states" "$service_states"
 
 # Candidate configuration files. Only paths and selected non-secret settings are returned.
-config_files=""
+config_files=()
 for f in /etc/freshclam.conf /etc/clamd.conf /etc/clamd.d/*.conf /etc/clamav/*.conf; do
-    [ -f "$f" ] && config_files="${config_files}${f}"$'\n'
+    [ -f "$f" ] && config_files+=("$f")
 done
-emit "config_files" "$config_files"
+emit "config_files" "$(printf '%s\n' "${config_files[@]}")"
 
 config_settings=""
-for f in $config_files; do
+for f in "${config_files[@]}"; do
     selected="$(
         grep -E '^[[:space:]]*(DatabaseDirectory|LogFile|LocalSocket|TCPSocket|TCPAddr|User|ScanOnAccess)[[:space:]]+' \
             "$f" 2>/dev/null || true
@@ -132,9 +132,11 @@ signature_files="$(
 )"
 emit "signature_files" "$signature_files"
 
+# Explicit /dev/null prevents grep reading SSH stdin when no configs exist.
+# Keep configuration paths in an array so whitespace is preserved.
 # Extract likely LocalSocket values and test whether sockets exist.
 socket_settings="$(
-    grep -hE '^[[:space:]]*LocalSocket[[:space:]]+' $config_files 2>/dev/null \
+    grep -hE '^[[:space:]]*LocalSocket[[:space:]]+' /dev/null "${config_files[@]}" 2>/dev/null \
       | awk '{print $2}' || true
 )"
 socket_checks=""
@@ -155,13 +157,13 @@ emit "clamd_listeners" "$(ss -lntp 2>/dev/null | grep -Ei 'clamd|:3310' || true)
 # Validate configured log paths without changing them.
 # Uses configured User when found; otherwise root is used for the access check.
 clam_user="$(
-    grep -hE '^[[:space:]]*User[[:space:]]+' $config_files 2>/dev/null \
+    grep -hE '^[[:space:]]*User[[:space:]]+' /dev/null "${config_files[@]}" 2>/dev/null \
       | awk 'NR==1 {print $2}' || true
 )"
 [ -z "$clam_user" ] && clam_user="root"
 
 log_paths="$(
-    grep -hE '^[[:space:]]*LogFile[[:space:]]+' $config_files 2>/dev/null \
+    grep -hE '^[[:space:]]*LogFile[[:space:]]+' /dev/null "${config_files[@]}" 2>/dev/null \
       | awk '{print $2}' || true
 )"
 log_checks=""

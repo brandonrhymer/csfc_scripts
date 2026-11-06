@@ -1,10 +1,16 @@
 """Offline checks only: no SSH, account changes, network or installers."""
 import ast
+import base64
+import contextlib
+import io
 import importlib.util
 import pathlib
+import re
+import shlex
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -74,6 +80,84 @@ class AdminToolsTests(unittest.TestCase):
             'transport_status': 'SUCCESS', 'data': {'os_release': 'ID=rhel\nVERSION_ID=9'},
         })
         self.assertEqual(result['overall_status'], 'NOT_INSTALLED')
+
+    def check_config_queries(self, files, expected):
+        # Execute only the three config queries. Leave stdin open: the old grep
+        # calls would block here when there are no config filenames.
+        commands = ['config_files=(' + ' '.join(shlex.quote(str(p)) for p in files) + ')']
+        for name in ('socket_settings', 'clam_user', 'log_paths'):
+            assignment = re.search(r'(?ms)^' + name + r'="\$\(\n.*?^\)"', self.clam.REMOTE_SCRIPT)
+            self.assertIsNotNone(assignment)
+            commands.append(assignment.group())
+            commands.append('printf "%s\\n" "$' + name + '"')
+        proc = subprocess.Popen(['bash', '-c', '\n'.join(commands)], stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            proc.wait(timeout=3)
+            output, error = proc.communicate(timeout=1)
+            self.assertEqual(proc.returncode, 0, error)
+            self.assertEqual(output.splitlines(), expected)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.communicate()
+
+    def test_clamav_no_configs_does_not_read_stdin(self):
+        self.check_config_queries([], ['', '', ''])
+
+    def test_clamav_config_filename_with_spaces(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / 'example config.conf'
+            path.write_text('LocalSocket /example/socket\nUser example_service\nLogFile /example/log\n')
+            self.check_config_queries([path], ['/example/socket', 'example_service', '/example/log'])
+
+    def records(self, values):
+        return ''.join(self.remediation.MARKER + '\t' + key + '\t' +
+                       base64.b64encode(value.encode()).decode() + '\n'
+                       for key, value in values.items())
+
+    def test_remediation_requires_terminal_result_and_zero_exit(self):
+        for apply_mode, success in ((True, 'REMEDIATED'), (False, 'DRY_RUN_READY')):
+            with self.subTest(apply=apply_mode):
+                interpret = self.remediation.interpret_remote_response
+                self.assertEqual(interpret(self.records({'result': success}), 0, apply_mode)['status'], success)
+                for values, exit_code in (({'hostname': 'host1.example.invalid'}, 0),
+                                          ({'result': 'UNKNOWN'}, 0), ({'result': 'unexpected'}, 0),
+                                          ({'result': success}, 255), ({'result': success}, None),
+                                          ({'result': 'DRY_RUN_READY' if apply_mode else 'REMEDIATED'}, 0),
+                                          ({}, 0)):
+                    self.assertEqual(interpret(self.records(values), exit_code, apply_mode)['status'], 'UNVERIFIED')
+                for failure in ('FAILED', 'UID_GID_CONFLICT', 'UNSUPPORTED_OS'):
+                    self.assertEqual(interpret(self.records({'result': failure}), 1, apply_mode)['status'], failure)
+
+    def test_remediation_uses_ssh_exit_code(self):
+        module = self.remediation
+        process = mock.Mock(returncode=255)
+        process.poll.side_effect = [None, 255]
+        with mock.patch.object(module.shutil, 'which', return_value='/example/ssh'), \
+             mock.patch.object(module.pty, 'openpty', return_value=(100, 101)), \
+             mock.patch.object(module.subprocess, 'Popen', return_value=process), \
+             mock.patch.object(module.select, 'select', return_value=([100], [], [])), \
+             mock.patch.object(module.os, 'read', return_value=self.records({'result': 'REMEDIATED'}).encode()), \
+             mock.patch.object(module.os, 'close'):
+            result = module.run_remote('host1.example.invalid', 'example_operator', '', '', True, False)
+        self.assertEqual(result['status'], 'UNVERIFIED')
+        process.wait.assert_called_once()
+
+    def test_remediation_main_fails_closed_without_apply_retries(self):
+        module = self.remediation
+        for status, expected_exit in (('UNKNOWN', 1), ('UNVERIFIED', 1), ('TIMEOUT', 1),
+                                      ('ERROR', 1), ('DRY_RUN_READY', 1), ('REMEDIATED', 0)):
+            with self.subTest(status=status), \
+                 mock.patch.object(module.sys, 'argv', ['script', '--inventory', 'private.csv', '--apply']), \
+                 mock.patch.object(module.os, 'geteuid', return_value=0), \
+                 mock.patch.object(module, 'read_inventory', return_value=[('host1.example.invalid', 'example_operator')]), \
+                 mock.patch('builtins.input', return_value='APPLY'), \
+                 mock.patch.object(module.getpass, 'getpass', return_value='synthetic-test-value'), \
+                 mock.patch.object(module, 'run_remote', return_value={'status': status, 'error': None, 'data': {}}) as remote, \
+                 mock.patch.object(module, 'write_report'), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(module.main(), expected_exit)
+                remote.assert_called_once()
 
     def test_remote_command_preserves_script(self):
         # Verify shell quoting round-trips literal script content without execution.

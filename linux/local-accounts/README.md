@@ -30,5 +30,10 @@ not prove remote work stopped. Apply mode does not retry automatically. Inspect
 account state before any retry. UID changes may reassign ownership across the
 root filesystem; separate mounts are not migrated. No rollback is provided.
 
+Success requires the expected final result and a zero SSH exit code. Partial,
+unknown, or contradictory completion evidence is `UNVERIFIED`; it never counts
+as successful remediation. Any status other than the expected success for the
+selected mode makes the script exit nonzero.
+
 Discovery is preliminary evidence, not certification of compliance. Account discovery does not enforce or fully validate password/lockout policy.
 See [validation](../../docs/attachment-validation.md).

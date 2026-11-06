@@ -435,28 +435,37 @@ def run_remote(host, username, current_password, new_password, apply_mode, manag
         except OSError:
             pass
 
-    data = decode_records(output.decode("utf-8", errors="replace"))
+    return interpret_remote_response(
+        output.decode("utf-8", errors="replace"), proc.returncode, apply_mode
+    )
 
-    if data:
+
+def interpret_remote_response(output, returncode, apply_mode):
+    """Require a terminal success record AND a successful SSH exit.
+
+    Missing, unexpected, or contradictory completion evidence is unverified,
+    even if earlier structured records were received. Never infer success from
+    partial evidence or retry an apply run automatically.
+    """
+    data = decode_records(output)
+    status = data.get("result")
+    expected = "REMEDIATED" if apply_mode else "DRY_RUN_READY"
+    if status == expected and returncode == 0:
+        return {"status": status, "error": None, "data": data}
+    if status in {"FAILED", "UID_GID_CONFLICT", "UNSUPPORTED_OS"}:
         return {
-            "status": data.get("result", "UNKNOWN"),
-            "error": data.get("failure_reason"),
+            "status": status,
+            "error": data.get("failure_reason") or "Remote script reported failure.",
             "data": data,
         }
-
-    raw = output.decode("utf-8", errors="replace").lower()
-    if "host key verification failed" in raw:
-        error = "Host-key verification failed."
-    elif "could not resolve hostname" in raw:
-        error = "DNS/name resolution failed."
-    elif "permission denied" in raw:
-        error = "SSH authentication failed."
-    elif "example_admin_sudo_prompt:" in raw:
-        error = "sudo authentication failed or account lacks sudo."
-    else:
-        error = "No structured response received from target."
-
-    return {"status": "ERROR", "error": error, "data": {}}
+    return {
+        "status": "UNVERIFIED",
+        "error": (
+            "Remote completion was not verified: missing/unexpected final result "
+            "or unsuccessful SSH exit. Inspect target state before retrying."
+        ),
+        "data": data,
+    }
 
 
 def write_report(report):
@@ -628,17 +637,10 @@ def main():
     print(f"\nReport written to: {REPORT_FILE}")
     print(json.dumps(status_counts, indent=2))
 
-    failure_statuses = {
-        "ERROR",
-        "TIMEOUT",
-        "FAILED",
-        "UID_GID_CONFLICT",
-        "UNSUPPORTED_OS",
-        "NOT_ASSESSED",
-    }
-
+    # Fail closed: only the expected completion for this mode is success.
+    expected_status = "REMEDIATED" if args.apply else "DRY_RUN_READY"
     return 1 if any(
-        host["status"] in failure_statuses for host in report["hosts"]
+        host["status"] != expected_status for host in report["hosts"]
     ) else 0
 
 
