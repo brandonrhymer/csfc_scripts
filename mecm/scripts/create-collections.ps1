@@ -5,6 +5,8 @@ Create three empty starter device collections. Never deploys software.
 .DESCRIPTION
 Run from Connect via Windows PowerShell in the Configuration Manager console.
 Existing collections are reported and left unchanged, including their membership.
+New collections use manual refresh. Use Update Membership after rule changes.
+Review and enable a refresh schedule before relying on query membership.
 .PARAMETER LimitingCollectionId
 Maximum membership scope. SMS00001 is the built-in All Systems collection.
 .EXAMPLE

@@ -4,6 +4,8 @@
 Read basic site-server status without changing configuration.
 .DESCRIPTION
 Run locally on your site server in Windows PowerShell. Missing roles may be on another host.
+SQL service status below checks the local default instance (MSSQLSERVER) only.
+Named SQL instances and SQL on another host are not checked.
 A running service or registered provider does not prove end-to-end health.
 .EXAMPLE
 C:\Admin\mecm\scripts\get-site-status.ps1
@@ -11,7 +13,8 @@ C:\Admin\mecm\scripts\get-site-status.ps1
 [CmdletBinding()]
 param()
 # Each section is independent so an unavailable provider does not hide services.
-Write-Output '--- Services on this computer ---'
+Write-Output '--- Local services; SQL check is default instance only (MSSQLSERVER) ---'
+Write-Output 'Named SQL instances and remote SQL servers are not checked.'
 Get-Service -Name SMS_EXECUTIVE, SMS_SITE_COMPONENT_MANAGER, MSSQLSERVER, WsusService, W3SVC `
     -ErrorAction Continue | Select-Object Name, Status
 Write-Output '--- Registered SMS Providers ---'

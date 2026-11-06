@@ -66,8 +66,9 @@ if (-not $Create) { return }
 if ((Get-Location).Drive.Name -ne $SiteCode -or (Get-Location).Provider.Name -ne 'CMSite') {
     throw "Open Connect via Windows PowerShell and select the $SiteCode site drive."
 }
-# Stop rather than editing an existing application or silently making duplicates.
-if (@(Get-CMApplication -Name $name | Where-Object LocalizedDisplayName -EQ $name).Count -gt 0) {
+# Include hidden applications and treat wildcard characters in MSI names literally.
+# Keep the exact comparison so similarly named applications do not block creation.
+if (@(Get-CMApplication -Name $name -ShowHidden -DisableWildcardHandling | Where-Object LocalizedDisplayName -EQ $name).Count -gt 0) {
     throw "Application already exists: $name. Review it in the console."
 }
 if ($PSCmdlet.ShouldProcess($name, 'Create application and MSI deployment type')) {

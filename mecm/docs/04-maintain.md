@@ -9,7 +9,7 @@ C:\Admin\mecm\scripts\create-collections.ps1 -SiteCode 'LAB' -WhatIf
 C:\Admin\mecm\scripts\create-collections.ps1 -SiteCode 'LAB'
 ```
 
-This creates `LAB - Pilot`, `LAB - Servers`, and `LAB - Workstations`, limited to All Systems unless you supply another `-LimitingCollectionId`. They start empty. Existing collections with those names are left alone; inspect their membership and deployments because they may not be empty. Add a few direct members first. Introduce query membership rules only when the team understands and has reviewed their results.
+This creates `LAB - Pilot`, `LAB - Servers`, and `LAB - Workstations`, limited to All Systems unless you supply another `-LimitingCollectionId`. They start empty. Existing collections with those names are left alone; inspect their membership and deployments because they may not be empty. Add a few direct members first. These collections use **manual refresh**: membership is not reevaluated on a recurring schedule. After changing membership rules, select the collection and choose **Update Membership**, wait for evaluation, then check **Show Members** again. Before using query-based membership, review the query and an appropriate full membership update schedule in **Properties > Membership Rules**. Enable that reviewed schedule explicitly; do not assume this script sets one.
 
 ## Add an MSI application
 
@@ -24,7 +24,7 @@ C:\Admin\mecm\scripts\add-msi-application.ps1 -MsiPath $msi -SiteCode 'LAB' -Cre
 
 The first command reads the MSI database without installing the product. The last creates the application and an MSI deployment type. Review the generated commands, product-code detection, installation context, architecture requirements, dependencies, return codes, reboot handling, and uninstall behavior before distributing or deploying it. The script does not infer transforms, vendor prerequisites, licensing, or EXE switches. Per-user MSIs need particular attention; this script does not force system installation.
 
-A failed deployment-type creation can leave an application without a deployment type. Inspect that object and finish it in the console, or remove it manually only after confirming it is unused. The script stops on duplicate application names rather than modifying existing software.
+A failed deployment-type creation can leave an application without a deployment type. Inspect that object and finish it in the console, or remove it manually only after confirming it is unused. The script checks visible and hidden applications, treats wildcard characters in the name literally, and stops on an exact duplicate name rather than modifying existing software.
 
 For an EXE, use the vendor's documented silent install/uninstall commands and a tested file/registry detection rule in the console. There is no universal EXE query that supplies these safely.
 

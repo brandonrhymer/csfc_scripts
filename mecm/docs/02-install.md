@@ -23,6 +23,8 @@ Run locally on the site server in Windows PowerShell:
 C:\Admin\mecm\scripts\get-site-status.ps1
 ```
 
+The script checks only the local default SQL service (`MSSQLSERVER`). For named instances or a remote SQL host, inspect the actual instance on its host using SQL Server Configuration Manager; this script does not establish its health.
+
 Review `C:\ConfigMgrSetup.log` and `C:\ConfigMgrPrereq.log`. Open the console and confirm your site appears under **Administration > Site Configuration > Sites**. In **Monitoring > System Status**, inspect Site Status and Component Status. Use `C:\ConfigMgr\Logs` for site component logs and CMTrace to read them. If the provider query fails, inspect `SMSProv.log` on the provider host and verify namespace access before assuming the site is absent.
 
 **Stage done:** Setup reports completion and your site exists. Record the date, build, setup result, and operator. A created site does not prove that WSUS works or clients can install updates. Provider registration and running services are diagnostic clues, not a full health test. Never rerun installation merely because a service check fails.

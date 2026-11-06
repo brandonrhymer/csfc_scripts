@@ -55,3 +55,15 @@ The guides describe completion evidence; they do not certify any stage as comple
 The first working-branch commit was pushed immediately before the additional privacy instruction arrived. It included a supplied site code and installation paths, but no credentials, actual hostnames, IP addresses, or private domain names were identified. The branch was rebuilt from main with generic examples so that its added history also excludes those environment details. The superseded commit may remain in GitHub retention; rewriting a branch is not guaranteed remote erasure.
 
 Reviewed the complete new diff, staged file list, and repository history for credential indicators and environment identifiers. Existing redaction tests contain synthetic credentials and reserved example addresses; these are test fixtures. No actual exposed secret was identified. Keep the review requirement for future contributions.
+
+## Follow-up review checks
+
+The application duplicate lookup now uses `-ShowHidden -DisableWildcardHandling` and retains exact name comparison, following [Get-CMApplication](https://learn.microsoft.com/en-us/powershell/module/configurationmanager/get-cmapplication). Five isolated tests execute that guard with a fake query: visible duplicate, hidden duplicate, literal wildcard name, similar name, and absent name. All pass. They verify the query arguments and decisions, not the live provider's matching behavior or the MSI COM path.
+
+```powershell
+powershell.exe -NoProfile -File .\mecm\tests\check-application-duplicates.ps1
+```
+
+The status script now states in its help and output that SQL checking covers only the local default instance. The install guide directs operators to inspect named/remote instances separately. Collection help and the maintenance guide explain manual refresh, Update Membership, and a reviewed schedule before query-based membership.
+
+After these changes, all four operational scripts pass syntax parsing, all four collection tests and all five duplicate-guard tests pass in PowerShell 7.4.13 on Linux. Relative links, whitespace, and the final diff/privacy review pass. No Windows PowerShell 5.1, Windows services, MSI COM, WSUS or real MECM execution was performed.
