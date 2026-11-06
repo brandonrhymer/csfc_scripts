@@ -1,0 +1,2 @@
+# Reserved example only. Copy outside Git and replace with an approved pilot target.
+host1.example.invalid
