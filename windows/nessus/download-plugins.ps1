@@ -32,11 +32,15 @@ if (-not (Test-Path -LiteralPath $parent -PathType Container)) { throw 'Create t
 if ($PSCmdlet.ShouldProcess($destination, 'Download plugin archive (no import)')) {
     $temporary = Join-Path $parent ([guid]::NewGuid().ToString('N') + '.partial')
     try {
-        Invoke-WebRequest -Uri $DownloadUri -OutFile $temporary -UseBasicParsing -ErrorAction Stop
+        # Require a direct HTTPS download; do not follow an insecure redirect.
+        Invoke-WebRequest -Uri $DownloadUri -OutFile $temporary -UseBasicParsing -MaximumRedirection 0 -ErrorAction Stop
         if ((Get-Item -LiteralPath $temporary).Length -eq 0) { throw 'Downloaded archive is empty.' }
         # Publish the completed nonempty download under its requested filename.
         [IO.File]::Move($temporary, $destination)
         Write-Output "Downloaded archive. Validate through your approved import process before use."
+    } catch {
+        # Request exceptions can contain a token-bearing URL. Do not print it.
+        throw 'Download failed. Check the approved direct HTTPS source, network, and output permissions privately.'
     } finally {
         if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }
     }

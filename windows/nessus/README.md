@@ -8,7 +8,7 @@ and saves it to a new local file. It is the sanitized replacement for the suppli
 validate archive authenticity, import plugins, restart services, or update a
 scanner's displayed plugin set.
 
-**Current phase: content preparation. Full testing and review are deferred.**
+**Current phase: code review. Testing and lab validation remain deferred.**
 The commands below describe the later approved workflow. Download and import
 steps have not been completed by preparing this guide.
 
@@ -56,6 +56,9 @@ that the response contains the expected archive.
 Preview does not test connectivity, permissions by writing, available content,
 or scanner compatibility. The script refuses to overwrite an existing output
 file. Use a new filename rather than deleting evidence to force a rerun.
+The URL must serve the archive directly. All redirects are refused so a response
+cannot silently downgrade HTTPS to HTTP. Obtain an approved direct HTTPS source
+if the service returns a redirect; do not bypass this restriction.
 
 During download, a uniquely named `.partial` file is used in the destination
 directory. Empty downloads are rejected. After the request completes, the file

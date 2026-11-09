@@ -142,11 +142,11 @@ socket_settings="$(
 socket_checks=""
 for socket in $socket_settings; do
     if [ -S "$socket" ]; then
-        socket_checks="${socket}|SOCKET_PRESENT"$'\n'
+        socket_checks="${socket_checks}${socket}|SOCKET_PRESENT"$'\n'
     elif [ -e "$socket" ]; then
-        socket_checks="${socket}|EXISTS_NOT_SOCKET"$'\n'
+        socket_checks="${socket_checks}${socket}|EXISTS_NOT_SOCKET"$'\n'
     else
-        socket_checks="${socket}|MISSING"$'\n'
+        socket_checks="${socket_checks}${socket}|MISSING"$'\n'
     fi
 done
 emit "socket_checks" "$socket_checks"
@@ -170,16 +170,16 @@ log_checks=""
 for log_path in $log_paths; do
     if [ -e "$log_path" ]; then
         if runuser -u "$clam_user" -- test -w "$log_path" 2>/dev/null; then
-            log_checks="${log_path}|EXISTS_WRITABLE_BY_${clam_user}"$'\n'
+            log_checks="${log_checks}${log_path}|EXISTS_WRITABLE_BY_${clam_user}"$'\n'
         else
-            log_checks="${log_path}|EXISTS_NOT_WRITABLE_BY_${clam_user}"$'\n'
+            log_checks="${log_checks}${log_path}|EXISTS_NOT_WRITABLE_BY_${clam_user}"$'\n'
         fi
     else
         log_dir="$(dirname "$log_path")"
         if [ -d "$log_dir" ] && runuser -u "$clam_user" -- test -w "$log_dir" 2>/dev/null; then
-            log_checks="${log_path}|MISSING_PARENT_WRITABLE_BY_${clam_user}"$'\n'
+            log_checks="${log_checks}${log_path}|MISSING_PARENT_WRITABLE_BY_${clam_user}"$'\n'
         else
-            log_checks="${log_path}|MISSING_PARENT_NOT_WRITABLE_BY_${clam_user}"$'\n'
+            log_checks="${log_checks}${log_path}|MISSING_PARENT_NOT_WRITABLE_BY_${clam_user}"$'\n'
         fi
     fi
 done
@@ -292,15 +292,18 @@ def ssh_collect(host, username, password):
     The remote script is shell-quoted in the command; stdin carries credentials only.
     """
     ssh_binary = shutil.which("ssh")
-    if not ssh_binary:
+    setsid_binary = shutil.which("setsid")
+    if not ssh_binary or not setsid_binary:
         return {
             "transport_status": "ERROR",
-            "error": "OpenSSH client binary 'ssh' was not found in PATH.",
+            "error": "OpenSSH 'ssh' and util-linux 'setsid' must be available in PATH.",
             "raw_output": "",
             "data": {},
         }
 
     command = [
+        # Give SSH this PTY as its controlling terminal, including /dev/tty.
+        setsid_binary, "--ctty", "--wait",
         ssh_binary,
         "-tt",
         "-o", "BatchMode=no",
@@ -598,8 +601,8 @@ def assess(host, collected):
     socket_checks = data.get("socket_checks", "").strip()
     listeners = data.get("clamd_listeners", "").strip()
     if socket_checks:
-        if "SOCKET_PRESENT" not in socket_checks:
-            failures.append("Configured LocalSocket is missing or is not a socket.")
+        if any(not line.endswith("|SOCKET_PRESENT") for line in socket_checks.splitlines()):
+            failures.append("At least one configured LocalSocket is missing or is not a socket.")
     elif not listeners:
         partial.append("No configured LocalSocket or clamd TCP listener was discovered.")
 

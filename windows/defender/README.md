@@ -2,7 +2,7 @@
 
 A standalone implementation of the approved **validate → connect → inspect → copy → execute → verify → report** workflow. It processes one target at a time.
 
-**Current phase: content preparation. Full testing and review are deferred.**
+**Current phase: code review. Testing and lab validation remain deferred.**
 The workflow below is documentation for later approved use, not an instruction
 to begin testing now. Earlier limited parser/helper checks do not establish
 Windows remoting, certificate, ACL, or installation readiness.
@@ -47,7 +47,7 @@ The default remote directory is `C:\ProgramData\CSfC-DefenderUpdate-MVP`. Keep t
 See [repository validation](../../docs/attachment-validation.md). The original
 attachment referenced companion tests and a validation file that were not among
 the supplied files; they are not represented as included or executed here.
-When the later full test/review phase is authorized, include Windows PowerShell
+When the later testing phase is authorized, include Windows PowerShell
 5.1 and an approved single-target pilot. Those activities are currently deferred.
 
 ## 3. Configure and preview

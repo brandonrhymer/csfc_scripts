@@ -3,8 +3,8 @@
 This page explains how to choose and prepare a script. It does not authorize a
 change to a system, establish compliance, or replace your approved procedures.
 
-**Current phase: content preparation.** The scripts and runbooks are being
-fleshed out. A full test and review comes later. Do not treat an example command
+**Current phase: code review. Testing and lab validation remain deferred.**
+Source review does not establish runtime behavior. Do not treat an example command
 or an earlier syntax check as approval to use a script on an operational system.
 
 ## 1. Choose the smallest tool for the job
@@ -68,7 +68,7 @@ system's security posture or prove every external effect completed.
 - Do not paste full reports or inventories into GitHub issues or pull requests.
 
 The [preparation record](attachment-validation.md) distinguishes prior limited
-checks from the later full test/review phase. That later phase remains deferred.
+checks from current source review and later testing. Testing remains deferred.
 
 ## 5. Keep future repository updates organized
 

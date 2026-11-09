@@ -10,6 +10,9 @@ not verify that forwarding has been migrated or that all product data is gone.
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param()
 $ErrorActionPreference = 'Stop'
+if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) {
+    throw 'Run this script from 64-bit PowerShell so both uninstall registry views are visible.'
+}
 # 1. Inspect both registry views without invoking Win32_Product repair behavior.
 $paths = @(
     'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',

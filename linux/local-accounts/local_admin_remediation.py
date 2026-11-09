@@ -182,10 +182,27 @@ if [ -n "$existing_account" ]; then
 fi
 if [ -n "$existing_group" ]; then
     source_gid="$(printf '%s' "$existing_group" | cut -d: -f3)"
+    [ "$source_gid" = "$TARGET_GID" ] \
+        || fail "Existing group has a different GID; reconcile it manually before running this tool."
     local_identity_is_safe /etc/group "$ACCOUNT" "$source_gid" \
         || fail "Existing group is not a unique normal local identity; reconcile it manually."
     [ "$(getent group "$source_gid")" = "$existing_group" ] \
         || fail "Source GID lookup is ambiguous; resolve group ownership manually."
+fi
+
+# Never adopt another account's home or an unexplained existing directory.
+passwd_entries="$(getent passwd)" || fail "Could not check for shared home directories."
+if printf '%s\n' "$passwd_entries" | awk -F: -v account="$ACCOUNT" -v home="$TARGET_HOME" '
+    $1 != account && ($6 == home || index($6, home "/") == 1 || ($6 != "" && index(home, $6 "/") == 1)) { shared = 1 }
+    END { exit !shared }
+'; then
+    fail "Another account uses this home or an overlapping path; reconcile it manually."
+fi
+if [ -e "$TARGET_HOME" ]; then
+    [ -n "$existing_account" ] \
+        || fail "Target home already exists without this account; reconcile it manually."
+    [ "$(stat -c '%u' "$TARGET_HOME")" = "$source_uid" ] \
+        || fail "Existing home is owned by another identity; reconcile it manually."
 fi
 
 if [ "$APPLY_MODE" != "true" ]; then
@@ -204,14 +221,9 @@ if [ -z "$NEW_PASSWORD" ]; then
     fail "No example_admin password was provided."
 fi
 
-# Create or normalize private primary group.
+# Create the private primary group if absent. Existing GID mismatches are refused.
 if ! getent group "$ACCOUNT" >/dev/null 2>&1; then
     groupadd -g "$TARGET_GID" "$ACCOUNT" || fail "Could not create group ${ACCOUNT}."
-else
-    current_gid="$(getent group "$ACCOUNT" | cut -d: -f3)"
-    if [ "$current_gid" != "$TARGET_GID" ]; then
-        groupmod -g "$TARGET_GID" "$ACCOUNT" || fail "Could not set GID for ${ACCOUNT}."
-    fi
 fi
 
 if ! getent passwd "$ACCOUNT" >/dev/null 2>&1; then
@@ -389,8 +401,9 @@ def decode_records(output):
 
 def run_remote(host, username, current_password, new_password, apply_mode, manage_faillock):
     ssh = shutil.which("ssh")
-    if not ssh:
-        return {"status": "ERROR", "error": "ssh client not found", "data": {}}
+    setsid = shutil.which("setsid")
+    if not ssh or not setsid:
+        return {"status": "ERROR", "error": "OpenSSH 'ssh' and util-linux 'setsid' must be available in PATH.", "data": {}}
 
     script = REMOTE_TEMPLATE.replace(
         "__APPLY_MODE__", "true" if apply_mode else "false"
@@ -399,6 +412,8 @@ def run_remote(host, username, current_password, new_password, apply_mode, manag
     )
 
     command = [
+        # Give SSH this PTY as its controlling terminal, including /dev/tty.
+        setsid, "--ctty", "--wait",
         ssh,
         "-tt",
         "-o", "BatchMode=no",
@@ -608,6 +623,8 @@ def main():
         "report_type": "example_admin_remediation",
         "generated_utc": now_utc(),
         "mode": "APPLY" if args.apply else "DRY_RUN",
+        "run_status": "IN_PROGRESS",
+        "planned_host_count": len(inventory),
         "manage_faillock": args.manage_faillock,
         "baseline": {
             "account": ACCOUNT,
@@ -630,36 +647,42 @@ def main():
         "summary": {},
     }
 
+    # Confirm the report can be saved before changing any target. Later snapshots
+    # retain finished hosts if the operator interrupts at the next prompt.
+    try:
+        write_report(report)
+    except Exception as exc:
+        print(f"ERROR: Unable to write report; no targets changed: {exc}", file=sys.stderr)
+        return 2
+
     for host, username in inventory:
         print(f"\n--- {host} ({username}) ---")
         current_password = getpass.getpass(
             f"Current SSH/sudo password for {username}@{host}: "
         )
 
+        attempt = 0
         if not current_password:
-            report["hosts"].append({
-                "host": host,
-                "ssh_username_used": username,
+            response = {
                 "status": "NOT_ASSESSED",
                 "error": "No current administrative password supplied.",
-            })
-            continue
-
-        response = None
-        for attempt in range(1, (0 if args.apply else RETRIES) + 2):
-            print(f"Running {'remediation' if args.apply else 'dry-run preflight'}; attempt {attempt}...")
-            response = run_remote(
-                host=host,
-                username=username,
-                current_password=current_password,
-                new_password=new_password or "",
-                apply_mode=args.apply,
-                manage_faillock=args.manage_faillock,
-            )
-            if args.apply or response["status"] not in {"ERROR", "TIMEOUT"}:
-                break
-            if attempt <= RETRIES:
-                time.sleep(2)
+                "data": {},
+            }
+        else:
+            for attempt in range(1, (0 if args.apply else RETRIES) + 2):
+                print(f"Running {'remediation' if args.apply else 'dry-run preflight'}; attempt {attempt}...")
+                response = run_remote(
+                    host=host,
+                    username=username,
+                    current_password=current_password,
+                    new_password=new_password or "",
+                    apply_mode=args.apply,
+                    manage_faillock=args.manage_faillock,
+                )
+                if args.apply or response["status"] not in {"ERROR", "TIMEOUT"}:
+                    break
+                if attempt <= RETRIES:
+                    time.sleep(2)
 
         report["hosts"].append({
             "host": host,
@@ -672,12 +695,18 @@ def main():
 
         # Remove current host credential reference after use.
         current_password = None
+        try:
+            write_report(report)
+        except Exception as exc:
+            print(f"ERROR: Unable to save {host}'s result; stopping before the next target: {exc}", file=sys.stderr)
+            return 2
 
     # Remove shared new-account credential reference before report writing.
     new_password = None
     confirm_password = None
 
     report["hosts"].sort(key=lambda item: item["host"])
+    report["run_status"] = "COMPLETE"
 
     status_counts = {}
     for host_result in report["hosts"]:

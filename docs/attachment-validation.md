@@ -1,9 +1,26 @@
 # Attachment preparation record
 
-**Current phase: content preparation. Full testing and review are deferred at
-user direction.** This page retains the history of earlier limited checks;
-it is not a claim that the current content has completed a full review or lab
-validation. Do not begin the later test phase from these instructions alone.
+**Current phase: code review. Testing and lab validation remain deferred at
+user direction.** This page retains the history of earlier limited checks.
+Source review is not execution evidence. Do not begin the later test phase from
+these instructions alone.
+
+## Focused review corrections
+
+- SSH uses util-linux `setsid` to give each process its own controlling PTY.
+- Remediation refuses an existing group with a different GID and refuses foreign,
+  unexplained, or shared existing homes rather than trying to repair them.
+- Remediation saves its report before the first target and after each result.
+  An interrupted active host still needs manual reconciliation.
+- ClamAV retains every socket/log result and checks every configured socket.
+- Nessus downloads refuse redirects and suppress request errors that may contain
+  private URL tokens. Splunk removal requires 64-bit PowerShell on 64-bit Windows.
+- The existing SSH-exit test fixture now supplies EOF after its result instead
+  of returning the same bytes indefinitely. It has not been run in this phase.
+
+No test commands, deployment scripts, installers, or live targets were executed
+for these corrections. The changes remain subject to source review and later
+authorized testing; no new framework or automated migration system was added.
 
 ## Content-only completion update
 
@@ -19,9 +36,8 @@ failure. Remediation refuses unsafe/shared/protected source identities and
 unsafe home paths; an existing different home path requires manual reconciliation.
 Account-unlock failures no longer count as success.
 
-These content corrections are not represented as validated. No new test files
-or regression-test additions are included in this completion update. The full
-test/review phase remains a separate next step when requested.
+That earlier content update did not run validation or add test files. The current
+source-review corrections are listed separately above; testing remains deferred.
 
 ## Imported sources
 

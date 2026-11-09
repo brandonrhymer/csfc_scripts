@@ -208,14 +208,17 @@ def collect_host(host, username, password):
     in an argument, environment variable, inventory, report, or temporary file.
     """
     ssh_binary = shutil.which("ssh")
-    if not ssh_binary:
+    setsid_binary = shutil.which("setsid")
+    if not ssh_binary or not setsid_binary:
         return {
             "transport_status": "ERROR",
-            "error": "OpenSSH client was not found in PATH.",
+            "error": "OpenSSH 'ssh' and util-linux 'setsid' must be available in PATH.",
             "data": {},
         }
 
     command = [
+        # Give SSH this PTY as its controlling terminal, including /dev/tty.
+        setsid_binary, "--ctty", "--wait",
         ssh_binary,
         "-tt",
         "-o", "BatchMode=no",

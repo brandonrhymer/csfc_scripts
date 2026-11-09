@@ -7,13 +7,15 @@ signature-file timestamps, schedules, and results of benign scans of `/etc/hosts
 It does not install ClamAV, update definitions, change remote configuration, or
 run freshclam updates. Scanner invocations may create normal local logs on targets.
 
-**Current phase: content preparation. Full testing and review are deferred.**
+**Current phase: code review. Testing and lab validation remain deferred.**
 Commands below describe the later approved workflow; do not treat them as a
 completed test or as deployment authorization.
 
 ## Requirements and scope
 
-Launch from a Linux management computer with Python 3 and OpenSSH. Targets must
+Launch from a Linux management computer with Python 3, OpenSSH, and util-linux
+`setsid`. Each SSH process uses its own controlling terminal for password prompts.
+Targets must
 already have trusted host keys and approved SSH/sudo access. The same username
 and password are used across this script's target set, and that password must
 also work for sudo. Interactive MFA/key-only workflows are not implemented.
@@ -99,6 +101,10 @@ certification, so a collected `NOT_ASSESSED` result is nonzero.
   not establish that it ran, succeeded, or covers the intended filesystem.
 - A successful benign scan is not a malware-detection test. No EICAR artifact is
   supplied or executed.
+- All discovered socket and log-path results are retained. Any missing/non-socket
+  configured socket or unwritable configured log path is a finding. Log access
+  checks use the first configured `User` (or root); review multi-instance setups
+  with different service users separately.
 - Remote collection has a 60-second controller deadline. A slow scanner or SSH
   exchange can exceed it. No partial response is accepted as a completed result.
 - Read-only collection can retry once. Scanner checks may therefore run again.
@@ -106,4 +112,4 @@ certification, so a collected `NOT_ASSESSED` result is nonzero.
   planning another run; do not change security settings to force completion.
 
 See the [preparation record](../../docs/attachment-validation.md) for the later
-full test/review work, which is currently deferred.
+testing and lab work, which remain deferred.

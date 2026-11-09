@@ -9,13 +9,15 @@ These scripts are sanitized replacements for the supplied `exec.ps1` and
 The original installer loop did not perform remote installation; this version
 makes that local scope explicit.
 
-**Current phase: content preparation. Full testing and review are deferred.**
+**Current phase: code review. Testing and lab validation remain deferred.**
 The commands below describe a later approved workflow. No installation, removal,
 or forwarding outcome is established by preparing the repository content.
 
 ## Requirements and decisions
 
 Use an elevated Windows PowerShell 5.1-or-later console on the intended machine.
+On 64-bit Windows, run removal from 64-bit PowerShell. The removal script refuses
+a 32-bit process so registry redirection cannot hide the 64-bit installation.
 Before a later installation, prepare:
 
 - The approved Universal Forwarder MSI for the intended Windows architecture/version.
@@ -119,4 +121,4 @@ Use the normal approved Windows Installer investigation process if it stalls.
 
 Keep MSI files, endpoints, product logs, and recovery evidence outside Git. See
 [preparation record](../../docs/attachment-validation.md) for the deferred full
-test/review phase.
+test and lab phase.

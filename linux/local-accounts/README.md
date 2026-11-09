@@ -6,7 +6,7 @@ These tools work together but are separate commands:
 - `local_admin_remediation.py` defaults to a remote preflight. Only `--apply`
   creates or changes the illustrative local administrator account.
 
-**Current phase: content preparation. Full testing and review are deferred.**
+**Current phase: code review. Testing and lab validation remain deferred.**
 The examples below describe a later approved workflow. They are not evidence of
 a completed lab test or permission to change operational systems.
 
@@ -25,7 +25,9 @@ embedded shell value. Do not commit actual account names or deployment policy.
 
 ## Requirements
 
-Launch from Linux with Python 3 and OpenSSH. Targets must be approved RHEL 9
+Launch from Linux with Python 3, OpenSSH, and util-linux `setsid`. The SSH process
+uses its own controlling terminal so password prompts reach the script's PTY.
+Targets must be approved RHEL 9
 systems with trusted SSH host keys and an existing authorized SSH/sudo account.
 The same current password is assumed to work for SSH and sudo on each target;
 it may differ between targets. Key-only authentication and interactive MFA flows
@@ -98,6 +100,10 @@ existing identities, including protected/system IDs, shared source IDs, or
 identities that are not uniquely local. It also refuses symbolic-link or
 non-directory home-path components. If an existing account uses a different
 home path, reconcile that migration manually before using this tool.
+An existing group must already have the requested GID; this tool does not migrate
+groups. An existing home must belong to the existing account, and no other
+account returned by `getent passwd` may use the same or an overlapping home path.
+If the account is absent but its intended home exists, the script stops.
 
 These checks deliberately stop rather than guessing how to repair an unusual
 identity or home directory. Do not bypass them to make a preflight appear green.
@@ -144,6 +150,12 @@ Both report directories use mode 0700 and their files use mode 0600. Each run
 replaces its own `latest.json`; preserve needed evidence privately beforehand.
 The remediation report is `/var/log/example_admin_remediation/latest.json`.
 Reports contain identity and policy evidence and are not sanitized for sharing.
+Remediation saves an `IN_PROGRESS` report before the first target and updates it
+after each host returns. It stops if a report write fails. `COMPLETE` means the
+loop finished, not that every host succeeded. If interrupted, finished host
+results remain, but the active host may have changed without a saved result.
+Reconcile that host manually before any retry; this is not a resumable job system.
+Discovery still writes its report only when the whole run finishes.
 
 | Remediation status | Meaning |
 | --- | --- |
@@ -163,5 +175,5 @@ return `2`. Discovery likewise returns nonzero for findings that do not already
 match its illustrative baseline; inspect the report rather than assuming a
 nonzero code always means the script itself crashed.
 
-See the [preparation record](../../docs/attachment-validation.md). Full testing
-and review, including actual SSH/sudo and RHEL changes, remain deferred.
+See the [preparation record](../../docs/attachment-validation.md). Testing,
+including actual SSH/sudo and RHEL changes, remains deferred.

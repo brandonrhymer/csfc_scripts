@@ -133,12 +133,11 @@ class AdminToolsTests(unittest.TestCase):
     def test_remediation_uses_ssh_exit_code(self):
         module = self.remediation
         process = mock.Mock(returncode=255)
-        process.poll.side_effect = [None, 255]
         with mock.patch.object(module.shutil, 'which', return_value='/example/ssh'), \
              mock.patch.object(module.pty, 'openpty', return_value=(100, 101)), \
              mock.patch.object(module.subprocess, 'Popen', return_value=process), \
              mock.patch.object(module.select, 'select', return_value=([100], [], [])), \
-             mock.patch.object(module.os, 'read', return_value=self.records({'result': 'REMEDIATED'}).encode()), \
+             mock.patch.object(module.os, 'read', side_effect=[self.records({'result': 'REMEDIATED'}).encode(), b'']), \
              mock.patch.object(module.os, 'close'):
             result = module.run_remote('host1.example.invalid', 'example_operator', '', '', True, False)
         self.assertEqual(result['status'], 'UNVERIFIED')

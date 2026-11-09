@@ -4,8 +4,8 @@ A collection of focused administration tools with script-specific runbooks.
 Examples are synthetic. Keep actual deployment identifiers, credentials,
 packages, inventories, and runtime evidence outside this repository.
 
-**Current phase: content preparation. Full testing and review are deferred.**
-The material is being completed and organized before that later phase. Earlier
+**Current phase: code review. Testing and lab validation remain deferred.**
+The scripts are undergoing source review before that later phase. Earlier
 limited checks do not establish deployment readiness.
 
 ## Choose a starting point
