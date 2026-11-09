@@ -1,4 +1,29 @@
-# Attachment import and validation
+# Attachment preparation record
+
+**Current phase: content preparation. Full testing and review are deferred at
+user direction.** This page retains the history of earlier limited checks;
+it is not a claim that the current content has completed a full review or lab
+validation. Do not begin the later test phase from these instructions alone.
+
+## Content-only completion update
+
+The repository now has an operator start guide, platform indexes, expanded
+script-specific runbooks, and clearer descriptions of private inputs, preview
+scope, side effects, outputs, interruption handling, and recovery limits.
+
+Previously prepared Linux safety corrections are included: discovery requires
+completion evidence and a successful SSH exit, terminal output is drained after
+process exit, RHEL major-version matching is exact, and repeated remediation
+targets are rejected. Ownership migration preserves file groups and reports
+failure. Remediation refuses unsafe/shared/protected source identities and
+unsafe home paths; an existing different home path requires manual reconciliation.
+Account-unlock failures no longer count as success.
+
+These content corrections are not represented as validated. No new test files
+or regression-test additions are included in this completion update. The full
+test/review phase remains a separate next step when requested.
+
+## Imported sources
 
 Seven scripts and one Defender guide were imported from complete original
 attachment text reads. Source identities and full line coverage were verified.
@@ -33,9 +58,9 @@ version was substituted. Sanitized versions are the repository deliverables.
   support preview/confirmation and inspect MSI exit codes.
 - Removed references implying that absent Defender companion tests were included.
 
-## Checks
+## Historical limited checks
 
-Completed in the preparation environment: twelve Python tests (including embedded
+The earlier preparation record reported twelve Python tests (including embedded
 Bash parsing), PowerShell parsing and isolated Defender helper checks with
 PowerShell 7.4.6 on Linux, and staged-content privacy/documentation review.
 Windows PowerShell 5.1 and live-system checks have not been performed.
@@ -47,13 +72,15 @@ without automatic apply retries. ClamAV config queries use quoted arrays and an
 explicit empty input file. Remediation requires its expected terminal result plus
 a successful SSH exit; otherwise completion is unverified or failed.
 
-Run `python3 tests/test_admin_tools.py` for Python syntax, embedded Bash syntax,
+For the later authorized phase, the existing command is
+`python3 tests/test_admin_tools.py` for Python syntax, embedded Bash syntax,
 isolated emitter/decoder and assessment checks, and synthetic inventory checks.
-Run `pwsh -NoProfile -File tests/check-admin-tools.ps1` for PowerShell parsing and
+The existing PowerShell command is
+`pwsh -NoProfile -File tests/check-admin-tools.ps1` for PowerShell parsing and
 isolated Defender helper checks. These tests do not contact targets, install
 packages, change accounts, or run the deployment scripts' main bodies.
 
-## Outstanding lab validation
+## Deferred full test and lab validation
 
 Linux SSH/sudo prompt handling, actual RHEL account changes, ClamAV collection,
 Windows PowerShell 5.1 compatibility, WinRM/Kerberos, ACLs, Authenticode trust,

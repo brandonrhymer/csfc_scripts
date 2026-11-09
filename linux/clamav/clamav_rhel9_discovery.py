@@ -228,6 +228,7 @@ fi
 
 # Do not run signature updates; this tool assumes manual signature import.
 emit "freshclam_execution" "NOT_RUN_AIR_GAPPED_MANUAL_SIGNATURE_PROCESS"
+emit "collection_complete" "COMPLETE"
 exit 0
 """
 
@@ -340,10 +341,9 @@ def ssh_collect(host, username, password):
     deadline = time.monotonic() + CONNECT_TIMEOUT_SECONDS
 
     try:
+        # Read until terminal EOF, not merely process exit. SSH can exit while
+        # its final result is still buffered in the pseudo-terminal.
         while True:
-            if process.poll() is not None:
-                break
-
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 process.kill()
@@ -356,6 +356,8 @@ def ssh_collect(host, username, password):
 
             ready, _, _ = select.select([master_fd], [], [], min(1.0, remaining))
             if not ready:
+                if process.poll() is not None:
+                    break
                 continue
 
             try:
@@ -403,12 +405,19 @@ def ssh_collect(host, username, password):
     raw_output = output.decode("utf-8", errors="replace")
     data = decode_remote_output(raw_output)
 
-    if data:
+    if data.get("collection_complete") == "COMPLETE" and process.returncode == 0:
         return {
             "transport_status": "SUCCESS",
             "error": None,
             "raw_output": raw_output,
             "data": data,
+        }
+
+    if data:
+        return {
+            "transport_status": "ERROR",
+            "error": "Incomplete discovery response or unsuccessful SSH exit; do not use partial evidence.",
+            "data": {},
         }
 
     lower_output = raw_output.lower()
@@ -526,8 +535,8 @@ def assess(host, collected):
 
     os_release = data.get("os_release", "")
     is_rhel9 = bool(
-        re.search(r"^ID=\"?rhel\"?", os_release, re.MULTILINE | re.IGNORECASE)
-        and re.search(r"^VERSION_ID=\"?9", os_release, re.MULTILINE)
+        re.search(r'^ID="?rhel"?$', os_release, re.MULTILINE | re.IGNORECASE)
+        and re.search(r'^VERSION_ID="?9(?:\.[0-9]+)*"?$', os_release, re.MULTILINE)
     )
 
     if not is_rhel9:

@@ -133,6 +133,7 @@ emit "sudoers_example_admin_references" "$(
         /etc/sudoers /etc/sudoers.d 2>/dev/null || true
 )"
 
+emit "collection_complete" "COMPLETE"
 exit 0
 """
 
@@ -254,10 +255,9 @@ def collect_host(host, username, password):
     deadline = time.monotonic() + SSH_TIMEOUT
 
     try:
+        # Read until terminal EOF, not merely process exit. SSH can exit while
+        # its final result is still buffered in the pseudo-terminal.
         while True:
-            if process.poll() is not None:
-                break
-
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 process.kill()
@@ -269,6 +269,8 @@ def collect_host(host, username, password):
 
             readable, _, _ = select.select([master_fd], [], [], min(1, remaining))
             if not readable:
+                if process.poll() is not None:
+                    break
                 continue
 
             try:
@@ -314,11 +316,18 @@ def collect_host(host, username, password):
     raw_output = output.decode("utf-8", errors="replace")
     records = decode_records(raw_output)
 
-    if records:
+    if records.get("collection_complete") == "COMPLETE" and process.returncode == 0:
         return {
             "transport_status": "SUCCESS",
             "error": None,
             "data": records,
+        }
+
+    if records:
+        return {
+            "transport_status": "ERROR",
+            "error": "Incomplete discovery response or unsuccessful SSH exit; do not use partial evidence.",
+            "data": {},
         }
 
     lower = raw_output.lower()
@@ -352,7 +361,7 @@ def collect_host(host, username, password):
 def is_rhel9(os_release):
     return bool(
         re.search(r'^ID="?rhel"?$', os_release, re.MULTILINE | re.IGNORECASE)
-        and re.search(r'^VERSION_ID="?9', os_release, re.MULTILINE)
+        and re.search(r'^VERSION_ID="?9(?:\.[0-9]+)*"?$', os_release, re.MULTILINE)
     )
 
 

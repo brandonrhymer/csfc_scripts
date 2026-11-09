@@ -87,7 +87,31 @@ fail() {
 is_rhel9() {
     [ -r /etc/os-release ] || return 1
     . /etc/os-release
-    [ "${ID}" = "rhel" ] && [[ "${VERSION_ID}" == 9* ]]
+    [ "${ID}" = "rhel" ] && [[ "${VERSION_ID}" =~ ^9(\.[0-9]+)*$ ]]
+}
+
+# Only normal, unique local identities may be renumbered. Renumbering a shared
+# UID would transfer another account's files; system identities need manual work.
+local_identity_is_safe() {
+    local file="$1" name="$2" number="$3"
+    [[ "$number" =~ ^[0-9]+$ ]] && [ "$number" -ge 1000 ] || return 1
+    awk -F: -v name="$name" -v number="$number" '
+        $1 == name && $3 == number { exact++ }
+        $3 == number { owners++ }
+        END { exit !(exact == 1 && owners == 1) }
+    ' "$file"
+}
+
+# A symbolic link in a home path could redirect chown/chmod to unrelated data.
+# Validate every existing component, including the parent, without changing it.
+home_path_is_safe() {
+    local cursor="$1"
+    [[ "$cursor" == /* ]] && [ "$cursor" != "/" ] || return 1
+    while [ "$cursor" != "/" ]; do
+        [ -L "$cursor" ] && return 1
+        if [ -e "$cursor" ] && [ ! -d "$cursor" ]; then return 1; fi
+        cursor="$(dirname -- "$cursor")" || return 1
+    done
 }
 
 ensure_faillock_setting() {
@@ -142,6 +166,28 @@ existing_group="$(getent group "$ACCOUNT" 2>/dev/null || true)"
 emit "preflight_existing_account" "$existing_account"
 emit "preflight_existing_group" "$existing_group"
 
+# These checks also run in dry-run mode and precede every account mutation.
+home_path_is_safe "$TARGET_HOME" || fail "Unsafe home path; inspect symbolic links or non-directory components."
+if [ -n "$existing_account" ]; then
+    source_uid="$(printf '%s' "$existing_account" | cut -d: -f3)"
+    source_home="$(printf '%s' "$existing_account" | cut -d: -f6)"
+    local_identity_is_safe /etc/passwd "$ACCOUNT" "$source_uid" \
+        || fail "Existing account is not a unique normal local identity; do not migrate it automatically."
+    [ "$(getent passwd "$source_uid")" = "$existing_account" ] \
+        || fail "Source UID lookup is ambiguous; resolve identity ownership manually."
+    # Do not move arbitrary existing home trees. An operator must reconcile a
+    # different home path before this utility normalizes the account.
+    [ "$source_home" = "$TARGET_HOME" ] \
+        || fail "Existing home differs from the target; migrate and verify it manually first."
+fi
+if [ -n "$existing_group" ]; then
+    source_gid="$(printf '%s' "$existing_group" | cut -d: -f3)"
+    local_identity_is_safe /etc/group "$ACCOUNT" "$source_gid" \
+        || fail "Existing group is not a unique normal local identity; reconcile it manually."
+    [ "$(getent group "$source_gid")" = "$existing_group" ] \
+        || fail "Source GID lookup is ambiguous; resolve group ownership manually."
+fi
+
 if [ "$APPLY_MODE" != "true" ]; then
     emit "result" "DRY_RUN_READY"
     emit "detail" "No conflicts detected. Target is eligible for remediation."
@@ -194,7 +240,10 @@ else
     # Preserve local ownership for files on the root filesystem that used the
     # account's prior UID. Separate mount points are deliberately not changed.
     if [ -n "$old_uid" ] && [ "$old_uid" != "$TARGET_UID" ]; then
-        find / -xdev -uid "$old_uid" -exec chown -h "$ACCOUNT:$ACCOUNT" {} + 2>/dev/null
+        # Change the owner only. Files may intentionally belong to other groups.
+        # A failed migration can leave partial changes and must never be success.
+        find / -xdev -uid "$old_uid" -exec chown -h "$ACCOUNT" {} + 2>/dev/null \
+            || fail "Ownership migration failed; inspect partial changes before retrying."
         emit "old_uid_migrated" "$old_uid"
     fi
 
@@ -203,7 +252,9 @@ fi
 
 # Ensure required local access properties.
 usermod -aG wheel "$ACCOUNT" || fail "Could not add ${ACCOUNT} to wheel."
+home_path_is_safe "$TARGET_HOME" || fail "Home path became unsafe; inspect partial changes."
 mkdir -p "$TARGET_HOME" || fail "Could not create home directory."
+home_path_is_safe "$TARGET_HOME" || fail "Home path became unsafe; inspect partial changes."
 chown "$ACCOUNT:$ACCOUNT" "$TARGET_HOME" || fail "Could not set home ownership."
 chmod 0700 "$TARGET_HOME" || fail "Could not set home mode to 0700."
 
@@ -220,7 +271,7 @@ chage \
     "$ACCOUNT" || fail "Could not set password aging."
 
 # Unlock example_admin in case it was previously locked.
-passwd -u "$ACCOUNT" >/dev/null 2>&1 || true
+passwd -u "$ACCOUNT" >/dev/null 2>&1 || fail "Could not unlock ${ACCOUNT}."
 
 # Optional: global faillock configuration. This affects locally authenticated users.
 if [ "$MANAGE_FAILLOCK" = "true" ]; then
@@ -286,6 +337,7 @@ def validate_target(host, username):
 
 def read_inventory(path):
     records = []
+    seen_hosts = set()
 
     with open(path, "r", encoding="utf-8", newline="") as handle:
         for line_no, row in enumerate(csv.reader(handle), start=1):
@@ -299,7 +351,14 @@ def read_inventory(path):
 
             validate_target(row[0].strip(), row[1].strip())
 
-            records.append((row[0].strip(), row[1].strip()))
+            host = row[0].strip()
+            # Normalize spelling only. Aliases may still name the same machine;
+            # the operator must keep each actual target in the inventory once.
+            target_key = host.lower().rstrip(".")
+            if target_key in seen_hosts:
+                raise ValueError(f"Duplicate target on inventory line {line_no}; list each host once.")
+            seen_hosts.add(target_key)
+            records.append((host, row[1].strip()))
 
     if not records:
         raise ValueError("Inventory contains no usable hosts.")
@@ -376,7 +435,8 @@ def run_remote(host, username, current_password, new_password, apply_mode, manag
     deadline = time.monotonic() + TIMEOUT_SECONDS
 
     try:
-        while proc.poll() is None:
+        # Drain final buffered output even if the SSH process has already exited.
+        while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 proc.kill()
@@ -388,6 +448,8 @@ def run_remote(host, username, current_password, new_password, apply_mode, manag
 
             readable, _, _ = select.select([master], [], [], min(1, remaining))
             if not readable:
+                if proc.poll() is not None:
+                    break
                 continue
 
             try:

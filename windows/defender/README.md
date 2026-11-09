@@ -2,8 +2,10 @@
 
 A standalone implementation of the approved **validate → connect → inspect → copy → execute → verify → report** workflow. It processes one target at a time.
 
-**Validation status:** Static review only; Windows remoting, certificate checks,
-ACL handling, and installation still require an authorized lab pilot.
+**Current phase: content preparation. Full testing and review are deferred.**
+The workflow below is documentation for later approved use, not an instruction
+to begin testing now. Earlier limited parser/helper checks do not establish
+Windows remoting, certificate, ACL, or installation readiness.
 
 ## Files
 
@@ -40,12 +42,13 @@ notepad.exe .\systems.txt
 
 The default remote directory is `C:\ProgramData\CSfC-DefenderUpdate-MVP`. Keep this dedicated to the utility. New staging directories are restricted to SYSTEM and local Administrators. Existing directories are inspected, not silently re-ACLed; an unapproved owner or writer fails the target. Arbitrary shared `C:\Temp` directories may fail this check. Staging parents must also be trusted administrative locations; the checks are not a general filesystem-security audit.
 
-## 2. Validate before use
+## 2. Reserve validation for the later phase
 
 See [repository validation](../../docs/attachment-validation.md). The original
 attachment referenced companion tests and a validation file that were not among
 the supplied files; they are not represented as included or executed here.
-Run parser checks in Windows PowerShell 5.1 and an approved single-target pilot.
+When the later full test/review phase is authorized, include Windows PowerShell
+5.1 and an approved single-target pilot. Those activities are currently deferred.
 
 ## 3. Configure and preview
 
