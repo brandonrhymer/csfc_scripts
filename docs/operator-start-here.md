@@ -18,7 +18,7 @@ or an earlier syntax check as approval to use a script on an operational system.
 | Download a Nessus plugin archive | [Nessus runbook](../windows/nessus/README.md) | Downloads a file only. It does not import or activate plugins. |
 | Install or remove a local Splunk Forwarder | [Splunk runbook](../windows/splunk/README.md) | Runs one local MSI operation. It does not deploy to a remote inventory. |
 | Prepare Configuration Manager work | [MECM toolkit](../mecm/README.md) | Follow that toolkit's separate requirements and runbooks. |
-| Sanitize text before sharing | [Repository README](../README.md#text-sanitization) | Describes the separate PowerShell text-sanitization utility and its limits. |
+| Sanitize text before sharing | [Text-sanitization runbook](../obfuscation/README.md) | Describes the separate PowerShell text-sanitization utility and its limits. |
 
 Do not run every script as a bundle. Each has different requirements and effects.
 

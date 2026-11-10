@@ -17,8 +17,8 @@ Read [start here](../docs/operator-start-here.md) before preparing a private cop
 
 Use the PowerShell version documented for that utility. Defender requires an
 elevated 64-bit Windows PowerShell 5.1 controller; the smaller Windows scripts
-declare Windows PowerShell 5.1 as their minimum. The repository-root text
-sanitizer is separate and requires PowerShell 7.4 or later.
+declare Windows PowerShell 5.1 as their minimum. The [text sanitizer](../obfuscation/README.md)
+is separate and requires PowerShell 7.4 or later.
 
 Do not change execution policy, TrustedHosts, security settings, or certificate
 validation to get past a failure. Resolve prerequisites through the approved
