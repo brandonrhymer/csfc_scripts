@@ -1,4 +1,4 @@
-# Run with: pwsh -NoProfile -File ./tests/obfuscatefile.Tests.ps1
+# Run from the repository directory: pwsh -NoProfile -File ./obfuscation/tests/obfuscatefile.Tests.ps1
 # Dependency-free integration checks. All inputs and outputs are synthetic.
 [CmdletBinding()]
 param()
