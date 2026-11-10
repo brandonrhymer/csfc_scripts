@@ -1,16 +1,14 @@
 # Download a Nessus plugin archive
 
 `download-plugins.ps1` downloads one archive from an operator-supplied HTTPS URL
-and saves it to a new local file. It is the sanitized replacement for the supplied
-`update-acas-plugin.ps1` attachment.
+and saves it to a new local file.
 
 **It downloads only.** It does not register a scanner, activate a license,
 validate archive authenticity, import plugins, restart services, or update a
 scanner's displayed plugin set.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
-The commands below describe the later approved workflow. Download and import
-steps have not been completed by preparing this guide.
+**Full runtime and lab validation are incomplete.**
+The examples below do not establish download or scanner-import success.
 
 ## Requirements
 
@@ -91,4 +89,4 @@ Do not infer successful scanner updating from the download message.
 | File saved but scanner unchanged | Expected: this utility performs no import. Follow the separate approved import procedure. |
 
 Keep archives, URLs, logs, and import records outside Git. See the
-[preparation record](../../docs/attachment-validation.md) for deferred testing.
+[validation guide](../../docs/validation.md) for outstanding validation requirements.

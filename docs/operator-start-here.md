@@ -3,7 +3,7 @@
 This page explains how to choose and prepare a script. It does not authorize a
 change to a system, establish compliance, or replace your approved procedures.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
+**Full runtime and lab validation are incomplete.**
 Source review does not establish runtime behavior. Do not treat an example command
 or an earlier syntax check as approval to use a script on an operational system.
 
@@ -67,8 +67,8 @@ system's security posture or prove every external effect completed.
 - Keep evidence private. The collection scripts do not sanitize their reports.
 - Do not paste full reports or inventories into GitHub issues or pull requests.
 
-The [preparation record](attachment-validation.md) distinguishes prior limited
-checks from current source review and later testing. Testing remains deferred.
+The [validation guide](validation.md) describes prior limited checks and
+remaining validation requirements. Runtime and lab validation are incomplete.
 
 ## 5. Keep future repository updates organized
 

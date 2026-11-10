@@ -4,14 +4,11 @@
 - `uninstall-forwarder.ps1` finds registered Universal Forwarder MSI products on
   the **current computer** and removes the selected products through Windows Installer.
 
-These scripts are sanitized replacements for the supplied `exec.ps1` and
-`uninstall.ps1`. They do not provide remoting or process a computer inventory.
-The original installer loop did not perform remote installation; this version
-makes that local scope explicit.
+These scripts do not provide remoting or process a computer inventory.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
-The commands below describe a later approved workflow. No installation, removal,
-or forwarding outcome is established by preparing the repository content.
+**Full runtime and lab validation are incomplete.**
+The examples below do not establish installation, removal, or forwarding
+success. Each operation requires separate change approval.
 
 ## Requirements and decisions
 
@@ -31,7 +28,7 @@ The install script handles only the supplied MSI, license acceptance, receiving
 indexer, and deployment server. It does not configure certificates, create
 forwarding inputs, select an organization-specific service identity, manage
 Splunk application credentials, or establish that every MSI release can use
-these same unattended options. Those decisions remain part of the later review.
+these same unattended options. Review those decisions for the intended deployment.
 
 Do not change execution policy or other security settings to get past a failure.
 Do not run removal until forwarding/migration and log-retention impact are understood.
@@ -120,5 +117,5 @@ timeout. A still-running installer is not an invitation to start a second copy.
 Use the normal approved Windows Installer investigation process if it stalls.
 
 Keep MSI files, endpoints, product logs, and recovery evidence outside Git. See
-[preparation record](../../docs/attachment-validation.md) for the deferred full
-test and lab phase.
+[validation guide](../../docs/validation.md) for check coverage and
+outstanding lab requirements.

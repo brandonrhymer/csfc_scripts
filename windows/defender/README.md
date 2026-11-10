@@ -1,11 +1,11 @@
 # CSfC Defender Update — Sequential MVP
 
-A standalone implementation of the approved **validate → connect → inspect → copy → execute → verify → report** workflow. It processes one target at a time.
+A standalone implementation of the **validate → connect → inspect → copy → execute → verify → report** workflow. It processes one target at a time.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
-The workflow below is documentation for later approved use, not an instruction
-to begin testing now. Earlier limited parser/helper checks do not establish
-Windows remoting, certificate, ACL, or installation readiness.
+**Full runtime and lab validation are incomplete.**
+Earlier limited parser/helper checks do not establish Windows remoting,
+certificate, ACL, or installation readiness. Use requires approved lab validation
+and deployment authorization.
 
 ## Files
 
@@ -42,13 +42,12 @@ notepad.exe .\systems.txt
 
 The default remote directory is `C:\ProgramData\CSfC-DefenderUpdate-MVP`. Keep this dedicated to the utility. New staging directories are restricted to SYSTEM and local Administrators. Existing directories are inspected, not silently re-ACLed; an unapproved owner or writer fails the target. Arbitrary shared `C:\Temp` directories may fail this check. Staging parents must also be trusted administrative locations; the checks are not a general filesystem-security audit.
 
-## 2. Reserve validation for the later phase
+## 2. Validate before deployment
 
-See [repository validation](../../docs/attachment-validation.md). The original
-attachment referenced companion tests and a validation file that were not among
-the supplied files; they are not represented as included or executed here.
-When the later testing phase is authorized, include Windows PowerShell
-5.1 and an approved single-target pilot. Those activities are currently deferred.
+See the [validation guide](../../docs/validation.md). The repository contains
+limited parser/helper checks, not a complete Defender deployment test suite.
+Windows PowerShell 5.1 compatibility and an approved single-target pilot remain
+unverified. Include both in the lab validation plan before operational use.
 
 ## 3. Configure and preview
 

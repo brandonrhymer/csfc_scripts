@@ -11,7 +11,7 @@ Microsoft Configuration Manager (also called MECM) manages computers, applicatio
 | 3 | [Configure and transfer the first patches](docs/03-first-patches.md) | A pilot client can scan, download, install, and report a Microsoft update. |
 | 4 | [Routine operations](docs/04-maintain.md) | Each change has a recorded result and a tested recovery plan. |
 
-**Examples only:** `LAB` is a placeholder site code, `C:\ConfigMgr` is an example installation path, and `files.example.invalid` is a reserved example hostname. Replace them with approved local values at run time. Keep the completed environment worksheet outside Git. If your site already exists, start with stage 2 verification; do not reinstall it to follow this guide. No stage was tested against a Windows lab during toolkit development.
+**Examples only:** `LAB` is a placeholder site code, `C:\ConfigMgr` is an example installation path, and `files.example.invalid` is a reserved example hostname. Replace them with approved local values at run time. Keep the completed environment worksheet outside Git. If your site already exists, start with stage 2 verification; do not reinstall it to follow this guide. No stage has been validated against a Windows lab.
 
 This guide assumes a site with no internet connection. The connected WSUS server already serves another disconnected network. Export only its existing data. Do not change its products, languages, classifications, approvals, synchronization, or cleanup jobs for this toolkit. If required content is missing, arrange a separate download source with its owner.
 
@@ -36,7 +36,7 @@ A parameter is a named input such as `-MsiPath`. Quotes keep a path with spaces 
 
 A collection is a group of computers. A limiting collection sets its maximum possible membership. A deployment tells clients to install something. Creating a collection or an application does not deploy it.
 
-Read [validation and open items](docs/validation.md) before lab use. These are small starting tools, not an unattended site installer. Keep passwords, licenses, exported catalogs, installers, and internal logs out of Git.
+Read [validation requirements](docs/validation.md) before lab use. These are small starting tools, not an unattended site installer. Keep passwords, licenses, exported catalogs, installers, and internal logs out of Git.
 
 ## Repository privacy
 

@@ -6,7 +6,7 @@ Requires **PowerShell 7.4 or later**. No external PowerShell modules are needed.
 
 [Repository overview](../README.md) · [Operator start guide](../docs/operator-start-here.md)
 
-**Current phase: code review. Testing and lab validation remain deferred.**
+**Full runtime and lab validation are incomplete.**
 
 ## Usage
 
@@ -75,8 +75,8 @@ Element/attribute names and namespace identifiers remain structural identifiers.
 
 ## Tests
 
-The synthetic regression suite runs without Pester or other modules. When testing
-resumes, run it from the repository directory:
+The synthetic regression suite runs without Pester or other modules. Run it
+from the repository directory as part of approved validation:
 
 ```powershell
 ./obfuscation/tests/obfuscatefile.Tests.ps1
