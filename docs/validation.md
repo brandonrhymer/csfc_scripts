@@ -7,7 +7,29 @@ operational systems.
 
 This page covers the Linux account/ClamAV tools and the Windows Defender,
 Nessus, and Splunk utilities. See the separate [MECM validation requirements](../mecm/docs/validation.md)
-and [text-sanitizer tests](../obfuscation/README.md#tests) for those tools.
+and [text-sanitizer tests](../obfuscation/README.md#tests) for those tools. KRBTGT
+has its own [release and validation record](../windows/reset-krbtgt/docs/verification.md),
+including an unresolved Test-flow report that repository integration does not resolve.
+
+## Package check matrix
+
+Run commands from the repository root in a suitable development environment.
+Use a fresh PowerShell process for each MECM test. These are isolated checks;
+the operational entry points and live lab checks require a separate plan.
+
+| Package | Shell and command | What the check establishes |
+| --- | --- | --- |
+| Linux account/ClamAV | Linux Python 3 plus Bash: `python3 -B -m unittest discover -s tests -p 'test_*.py'` | Discovers all `test_*.py` suites, including syntax, embedded Bash, helpers, synthetic inventories and mocked transport outcomes |
+| Windows utilities | Windows PowerShell 5.1: `powershell.exe -NoProfile -File tests/check-admin-tools.ps1` | Windows `.ps1` syntax and isolated Defender helpers; does not cover the KRBTGT module or all deployment behavior |
+| MECM | Windows PowerShell 5.1: `powershell.exe -NoProfile -File mecm/tests/check-syntax.ps1` | Operational script syntax |
+| MECM collections | Windows PowerShell 5.1: `powershell.exe -NoProfile -File mecm/tests/check-collections.ps1` | Synthetic collection control flow with fake commands |
+| MECM application lookup | Windows PowerShell 5.1: `powershell.exe -NoProfile -File mecm/tests/check-application-duplicates.ps1` | Isolated duplicate guard; no MSI COM or provider interaction |
+| Text sanitizer | PowerShell 7.4+: `pwsh -NoProfile -File obfuscation/tests/obfuscatefile.Tests.ps1` | Synthetic text/XML, encoding, path and failure regressions; Unix permission assertions run only on Unix |
+| KRBTGT package | Windows PowerShell 5.1, Pester 3.4.0 and PSScriptAnalyzer 1.25.0: `powershell.exe -NoProfile -File windows/reset-krbtgt/tools/Invoke-ReleaseVerification.ps1` | Committed manifest/hashes, syntax including module/data files, configured analyzer rules, JSON parsing and mocked behavior; no AD integration |
+
+The [GitHub workflow](github-workflow.md#automated-checks) runs these suites on
+hosted development runners. A result applies to the tested revision and runner;
+it does not supersede the lab requirements below or the KRBTGT known issue.
 
 ## Available checks and evidence limits
 
@@ -21,7 +43,7 @@ The Python checks cover syntax, embedded Bash syntax, isolated emitter/decoder
 and assessment behavior, and synthetic inventories:
 
 ```sh
-python3 tests/test_admin_tools.py
+python3 -B -m unittest discover -s tests -p 'test_*.py'
 ```
 
 The PowerShell checks cover parsing and isolated Defender helper behavior:
