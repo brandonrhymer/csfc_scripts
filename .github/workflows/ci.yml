@@ -63,6 +63,8 @@ jobs:
         run: ./mecm/tests/check-collections.ps1
       - name: MECM application duplicate guard
         run: ./mecm/tests/check-application-duplicates.ps1
+      - name: WSUS export path and failure guards
+        run: ./mecm/tests/check-wsus-export.ps1
       - name: Text sanitizer synthetic regressions
         shell: pwsh
         run: |
