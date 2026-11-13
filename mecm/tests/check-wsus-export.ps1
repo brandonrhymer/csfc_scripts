@@ -198,3 +198,7 @@ try {
     if (Test-Path -LiteralPath $resolvedFixture) { Remove-Item -LiteralPath $resolvedFixture -Recurse -Force }
     Remove-Variable -Name WsusFixture -Scope Global -ErrorAction SilentlyContinue
 }
+
+# Expected native-command failures leave LASTEXITCODE nonzero. Only reach this
+# success exit after every assertion and cleanup; an uncaught failure still aborts.
+exit 0
