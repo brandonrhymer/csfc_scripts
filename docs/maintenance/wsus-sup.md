@@ -31,6 +31,11 @@ manual procedure, its guide describes bottom-up cleanup, top-down superseded
 declines, and avoiding synchronization overlap. Those ordering rules do not
 authorize changing another owner's schedule. [Microsoft's maintenance guide](https://learn.microsoft.com/en-us/troubleshoot/mem/configmgr/update-management/wsus-maintenance-guide)
 
+That guide also says inactive-computer and unneeded-file cleanup are normally
+irrelevant when Configuration Manager manages the devices and update content,
+unless WSUS reporting events are enabled. Check that reporting configuration
+before treating either exclusion as a maintenance gap.
+
 Microsoft also supplies manual and automated database procedures. They include
 mutating operations and can run for a long time; the presence of a Microsoft
 script is not evidence that its full sequence is appropriate for this site.
