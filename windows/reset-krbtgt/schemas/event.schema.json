@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brandonrhymer/csfc_scripts/tree/main/windows/reset-krbtgt/schemas/event.schema.json",
+  "title": "KrbtgtRotation classic System event message payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "SchemaVersion", "EventId", "TimestampUtc", "InvocationId", "OperationId",
+    "Phase", "Status", "DomainDnsRoot", "ExecutionDc", "Message"
+  ],
+  "properties": {
+    "SchemaVersion": { "const": "1.0" },
+    "EventId": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "TimestampUtc": { "type": "string", "format": "date-time" },
+    "InvocationId": { "type": "string", "format": "uuid" },
+    "OperationId": { "type": "string", "format": "uuid" },
+    "Phase": { "enum": ["Setup", "Preflight", "Test", "Reset1", "Reset2"] },
+    "Status": { "enum": ["Running", "Succeeded", "Failed", "WhatIf"] },
+    "DomainDnsRoot": { "type": ["string", "null"] },
+    "ExecutionDc": { "type": ["string", "null"] },
+    "Message": { "type": "string", "minLength": 1 }
+  }
+}

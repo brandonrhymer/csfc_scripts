@@ -1,0 +1,12 @@
+{
+  "fixture": "reset1-convergence-timeout",
+  "phase": "Reset1",
+  "passwordWrite": "Succeeded",
+  "sourceMetadataVersionBefore": 17,
+  "sourceMetadataVersionAfter": 18,
+  "destinationMetadataVersionAtDeadline": 17,
+  "deadlineSeconds": 300,
+  "expectedResult": "Failed",
+  "reset2Permitted": false,
+  "automaticRollbackExpected": false
+}

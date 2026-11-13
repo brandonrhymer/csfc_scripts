@@ -1,0 +1,13 @@
+{
+  "fixture": "preflight-blocked-extra-dc",
+  "profile": {
+    "domainDnsRoot": "contoso.example",
+    "domainControllerCount": 3,
+    "writableServer2022Count": 3,
+    "rodcs": 0,
+    "maxTicketAgeMinutes": 600
+  },
+  "expectedResult": "Failed",
+  "expectedReason": "The approved profile requires exactly two domain controllers.",
+  "directoryWritesExpected": 0
+}

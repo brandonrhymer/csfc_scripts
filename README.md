@@ -12,7 +12,7 @@ limited checks do not establish deployment readiness.
 
 - [Operator start guide](docs/operator-start-here.md): scope, private inputs, and safe preparation.
 - [Linux tools](linux/README.md): ClamAV discovery and illustrative local-account discovery/remediation.
-- [Windows tools](windows/README.md): Defender, Nessus download, and local Splunk Forwarder utilities.
+- [Windows tools](windows/README.md): Defender, Nessus download, Splunk Forwarder, and attended KRBTGT rotation.
 - [MECM toolkit](mecm/README.md): Configuration Manager preparation, installation, and operations.
 - [Preparation record](docs/attachment-validation.md): imported files, prior checks, and deferred testing.
 - [Text sanitization](obfuscation/README.md): redact or consistently substitute sensitive values in a text file.

@@ -1,0 +1,4 @@
+# Local review notes and generated test output
+.review/
+TestResults.xml
+TestResults/

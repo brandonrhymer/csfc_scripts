@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brandonrhymer/csfc_scripts/tree/main/windows/reset-krbtgt/schemas/receipt.schema.json",
+  "title": "KrbtgtRotation invocation receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "SchemaVersion", "ToolVersion", "InvocationId", "OperationId", "Phase",
+    "Status", "StartedUtc", "Operator", "DirectoryMutationAttempted",
+    "ConfirmationAccepted", "DomainControllers", "PrerequisiteReceipts",
+    "Stages", "ReceiptPath"
+  ],
+  "properties": {
+    "SchemaVersion": { "const": "1.0" },
+    "ToolVersion": { "type": "string", "minLength": 1 },
+    "InvocationId": { "type": "string", "format": "uuid" },
+    "OperationId": { "type": "string", "format": "uuid" },
+    "Phase": { "enum": ["Setup", "Preflight", "Test", "Reset1", "Reset2"] },
+    "Status": { "enum": ["Running", "Succeeded", "Failed", "WhatIf"] },
+    "StartedUtc": { "type": "string", "format": "date-time" },
+    "CompletedUtc": { "type": ["string", "null"], "format": "date-time" },
+    "Operator": { "type": "string", "minLength": 1 },
+    "ExecutionDc": { "type": ["string", "null"] },
+    "DomainDnsRoot": { "type": ["string", "null"] },
+    "DomainDistinguishedName": { "type": ["string", "null"] },
+    "DomainSid": { "type": ["string", "null"] },
+    "DirectoryMutationAttempted": { "type": "boolean" },
+    "ConfirmationAccepted": { "type": "boolean" },
+    "Target": { "type": ["object", "null"] },
+    "DomainControllers": { "type": "array", "maxItems": 2 },
+    "KerberosPolicy": { "type": ["object", "null"] },
+    "PrerequisiteReceipts": { "type": "array", "items": { "type": "string" } },
+    "Stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["Name", "Status", "TimestampUtc", "Summary", "Evidence"],
+        "properties": {
+          "Name": { "type": "string" },
+          "Status": { "enum": ["Succeeded", "Failed", "Skipped", "WhatIf"] },
+          "TimestampUtc": { "type": "string", "format": "date-time" },
+          "Summary": { "type": "string" },
+          "Evidence": {}
+        }
+      }
+    },
+    "Error": { "type": ["object", "null"] },
+    "ReceiptPath": { "type": ["string", "null"] }
+  }
+}

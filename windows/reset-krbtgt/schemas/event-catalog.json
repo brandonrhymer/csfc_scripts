@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "logName": "System",
+  "source": "KrbtgtRotation",
+  "events": [
+    { "eventId": 900, "level": "Information", "meaning": "One-time local setup completed." },
+    { "eventId": 1100, "level": "Information", "meaning": "Preflight succeeded." },
+    { "eventId": 1101, "level": "Error", "meaning": "Preflight failed." },
+    { "eventId": 1200, "level": "Information", "meaning": "Temporary-user Test mutation started." },
+    { "eventId": 1201, "level": "Information", "meaning": "Temporary-user Test and cleanup succeeded." },
+    { "eventId": 1202, "level": "Error", "meaning": "Temporary-user Test or cleanup failed." },
+    { "eventId": 1300, "level": "Information", "meaning": "Exact typed production confirmation accepted." },
+    { "eventId": 1301, "level": "Warning", "meaning": "One production password mutation is being attempted." },
+    { "eventId": 1400, "level": "Information", "meaning": "Reset 1 succeeded and post-checks passed." },
+    { "eventId": 1401, "level": "Error", "meaning": "Reset 1 failed or became anomalous." },
+    { "eventId": 1500, "level": "Information", "meaning": "Reset 2 succeeded and post-checks passed." },
+    { "eventId": 1501, "level": "Error", "meaning": "Reset 2 failed or became anomalous." },
+    { "eventId": 1600, "level": "Information", "meaning": "Read-only WhatIf preview completed." }
+  ]
+}
