@@ -110,7 +110,12 @@ public static class MaintenanceFiles {
  }
  static List<string> DaclTokens(RawSecurityDescriptor descriptor) {
   var tokens=new List<string>();
-  ControlFlags daclFlags=ControlFlags.DiscretionaryAclPresent|ControlFlags.DiscretionaryAclProtected|ControlFlags.DiscretionaryAclDefaulted|ControlFlags.DiscretionaryAclAutoInherited|ControlFlags.DiscretionaryAclAutoInheritRequired;
+  // For an already materialized regular leaf-file DACL, AUTO_INHERITED records conversion
+  // to Windows' current inheritance model; setting the ACL can add that marker
+  // without changing access. Compare the resulting ACEs and protection instead.
+  // Keep PRESENT/PROTECTED, and conservatively DEFAULTED/AUTO_INHERIT_REQ.
+  // https://learn.microsoft.com/en-us/windows/win32/secauthz/automatic-propagation-of-inheritable-aces
+  ControlFlags daclFlags=ControlFlags.DiscretionaryAclPresent|ControlFlags.DiscretionaryAclProtected|ControlFlags.DiscretionaryAclDefaulted|ControlFlags.DiscretionaryAclAutoInheritRequired;
   tokens.Add(((int)(descriptor.ControlFlags&daclFlags)).ToString());
   RawAcl acl=descriptor.DiscretionaryAcl;
   if(acl==null) { tokens.Add("NULL"); return tokens; }

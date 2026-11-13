@@ -64,6 +64,20 @@ try {
     $reordered='D:P(A;;FW;;;BU)(A;;FR;;;WD)'
     Assert-True ([MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes $ordered),(Get-DescriptorBytes $reordered))) 'Ordinary adjacent Allow reorder rejected'
     Assert-True ([MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes 'D:P(D;;FR;;;WD)(D;;FW;;;BU)(A;;FA;;;SY)'),(Get-DescriptorBytes 'D:P(D;;FW;;;BU)(D;;FR;;;WD)(A;;FA;;;SY)'))) 'Ordinary adjacent Deny reorder rejected'
+    # Hosted regression: SetAccessControl adds AUTO_INHERITED to a materialized
+    # DACL with the same three inherited Allow ACEs, each mask 2032127. That
+    # resource-manager bookkeeping marker must not masquerade as permission drift.
+    $hostDacl='D:(A;ID;0x1f01ff;;;SY)(A;ID;0x1f01ff;;;BA)(A;ID;0x1f01ff;;;WD)'
+    $hostAutoInherited=$hostDacl.Replace('D:','D:AI')
+    Assert-True ([MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes $hostDacl),(Get-DescriptorBytes $hostAutoInherited))) 'Hosted AUTO_INHERITED-only difference rejected'
+    Assert-True ([MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes $hostAutoInherited),(Get-DescriptorBytes $hostDacl))) 'AUTO_INHERITED equivalence was asymmetric'
+    Assert-True (-not [MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes $hostDacl),(Get-DescriptorBytes ($hostDacl.Replace('D:','D:PAI'))))) 'AUTO_INHERITED masked a protection change'
+    Assert-True (-not [MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes $hostDacl),(Get-DescriptorBytes ($hostAutoInherited.Replace('0x1f01ff;;;WD','0x120089;;;WD'))))) 'AUTO_INHERITED masked a permission change'
+    Assert-True (-not [MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes $hostDacl),(Get-DescriptorBytes ($hostAutoInherited.Replace('A;ID;','A;;'))))) 'AUTO_INHERITED masked changed ACE inheritance flags'
+    Assert-True (-not [MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes 'D:(A;ID;FR;;;WD)(D;ID;FR;;;BU)'),(Get-DescriptorBytes 'D:AI(D;ID;FR;;;BU)(A;ID;FR;;;WD)'))) 'AUTO_INHERITED masked changed Allow/Deny order'
+    $withoutDacl=New-Object Security.AccessControl.RawSecurityDescriptor([Security.AccessControl.ControlFlags]::None,$null,$null,$null,$null)
+    $withoutDaclBytes=New-Object byte[] $withoutDacl.BinaryLength; $withoutDacl.GetBinaryForm($withoutDaclBytes,0)
+    Assert-True (-not [MaintenanceFiles]::DaclEquivalent($withoutDaclBytes,(Get-DescriptorBytes 'D:AINO_ACCESS_CONTROL'))) 'AUTO_INHERITED masked DACL-present change'
     foreach($pair in @(
         @('D:P(A;;FR;;;WD)(D;;FR;;;BU)','D:P(D;;FR;;;BU)(A;;FR;;;WD)'),
         @('D:P(A;ID;FR;;;WD)(A;;FW;;;BU)','D:P(A;;FW;;;BU)(A;ID;FR;;;WD)'),
