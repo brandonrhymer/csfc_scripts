@@ -21,6 +21,7 @@ Hosted isolated checks and source review do not establish deployment readiness.
 - [MECM toolkit](mecm/README.md): Configuration Manager preparation, installation, and operations.
 - [MECM client maintenance](mecm/client-maintenance/README.md): eleven independently packaged client maintenance candidates, with GitHub CI and outstanding approved-client pilots.
 - [Validation guide](docs/validation.md): check coverage, known limits, and required lab validation.
+- [Maintenance readiness](docs/maintenance/README.md): native DP/SUP coverage, KRBTGT evidence review, and the unprovisioned validation-lab blueprint.
 - [Releases and downloads](docs/releases.md): independent products, selectable bundles, and maintainer release steps.
 - [Text sanitization](obfuscation/README.md): redact or consistently substitute sensitive values in a text file.
 - [Contributing](CONTRIBUTING.md): bounded changes, review, and validation evidence.
