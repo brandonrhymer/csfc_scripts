@@ -17,12 +17,42 @@ Coordinate a quiet export window with its owner. Read its last synchronization r
 
 Run elevated **locally on connected WSUS**. Replace the example content path with its recorded WSUSContent folder. Choose a new transfer folder outside that source tree:
 
+Both paths must use absolute local drive-letter names, such as
+`D:\WSUS\WsusContent`, with their actual long directory names. The destination's
+parent must already exist, and the destination itself must not exist. Spaces
+and a trailing backslash are supported. Relative paths, `.`/`..` segments,
+UNC/device/provider paths, mapped or SUBST drives, custom PowerShell drives,
+short-name aliases, wildcard syntax, reserved device names, and trailing dots
+or spaces in directory names are rejected.
+
+The script checks native local-volume identities and existing path components
+before comparing the source and destination trees. It rejects an equal path,
+an ancestor or descendant, and any junction, symbolic link or mounted-folder
+reparse point along either path. It also scans all source directories and rejects
+reparse points anywhere in the source contents before creating output. This
+read-only inventory can take time on a large content tree; an inaccessible
+directory stops export. These checks do not resolve arbitrary aliases into
+supported paths. Supply the direct local paths instead.
+
+Keep the source and destination parent protected from concurrent changes for
+the whole export window. Preflight does not lock the filesystem or prevent a
+different process from replacing a directory after it has been checked. Follow
+the [Windows path naming rules](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file)
+and [.NET path format guidance](https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats)
+when selecting paths.
+
 ```powershell
 C:\Admin\mecm\scripts\wsus-export.ps1 -ContentPath 'D:\WSUS\WsusContent' -Destination 'F:\LAB-transfer-2026-11-06' -WhatIf
 C:\Admin\mecm\scripts\wsus-export.ps1 -ContentPath 'D:\WSUS\WsusContent' -Destination 'F:\LAB-transfer-2026-11-06'
 ```
 
 The script invokes Microsoft's `WsusUtil.exe`; **wsus-export.ps1 is not built in**. It exports catalog metadata and copies files already present. It neither downloads missing updates nor exports a ready-to-deploy Configuration Manager package. Copying all existing content may be large. Preserve the export/copy logs and follow the approved media scan/hash procedure.
+
+`-WhatIf` performs the path checks and source inventory without creating the
+transfer directory or invoking export/copy. A real run uses additive copying
+(`/E`, no `/MIR` or `/PURGE`) and retains `/XJ` as a copy-time junction exclusion.
+An export or copy failure leaves its new folder for diagnosis; select another
+new destination after reconciliation instead of overwriting an earlier transfer.
 
 ## Import on the disconnected SUP
 

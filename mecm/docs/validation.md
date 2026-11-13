@@ -24,9 +24,22 @@ To repeat local checks, start a fresh PowerShell process for each test:
 ```powershell
 powershell.exe -NoProfile -File .\mecm\tests\check-syntax.ps1
 powershell.exe -NoProfile -File .\mecm\tests\check-collections.ps1
+powershell.exe -NoProfile -File .\mecm\tests\check-wsus-export.ps1
 ```
 
-The tests do not contact a site. Run them in a fresh shell because the collection test substitutes command names for its test only.
+The tests do not contact a site. Run each in a fresh shell because the collection
+and WSUS fixture tests substitute command names for their own process only.
+
+The WSUS path/failure fixture suite passed locally under Windows PowerShell 5.1.
+It creates only temporary synthetic directories and junctions; WSUS and Robocopy
+are mocked. It covers relative/provider/device/UNC syntax, dot segments and
+ambiguous names, equal/ancestor/descendant paths, existing transfers, junctions
+in source/parent/descendant positions, a custom PowerShell drive, 8.3 source and
+destination-parent aliases where available, disjoint paths with spaces or a
+shared name prefix, preview, additive copy arguments, export failure, missing
+metadata, copy failure, and preservation of the source fixture. Native local-drive and
+long-name queries execute against the fixtures. This is isolated filesystem and
+control-flow coverage, not a WSUS export or a concurrency guarantee.
 
 ## Required Windows lab checks
 
@@ -34,9 +47,9 @@ The tests do not contact a site. Run them in a fresh shell because the collectio
 | --- | --- | --- |
 | Windows PowerShell 5.1 parser and help | Scripts parse and help/examples display | Hosted parsing passed; lab help/examples not run |
 | Site-status script on LAB | Provider and service/WSUS results correlate with console and logs | Not run |
-| WSUS export preview | No folder or export is created | Not run |
-| WSUS export with spaces in paths | New metadata, export log and complete additive content copy | Not run |
-| Export failures | Existing target rejected; export failure stops copy; Robocopy code >=8 reports failure | Reviewed only |
+| WSUS export preview | No folder or export is created | Isolated fixture passed; live WSUS not run |
+| WSUS export with spaces in paths | New metadata, export log and complete additive content copy | Path/control-flow fixture passed; live export/copy not run |
+| Export failures | Existing target rejected; export failure stops copy; Robocopy code >=8 reports failure | Isolated fixtures passed; live failures not run |
 | Collections on test site | Empty collections with correct limiting scope; repeat leaves them unchanged | Mock tested only |
 | MSI preview | Properties match a known lab MSI; file remains unchanged; no app created | Not run |
 | MSI create/duplicate/failure | Correct generated deployment type; duplicate rejected; partial app reported | Not run |
@@ -52,6 +65,7 @@ or installed ConfigMgr module compatibility.
 - Confirm provider and SUP hosts, WSUS post-install state/database/content path/ports/TLS, client boundaries, source-share permissions, and certificate design.
 - Confirm the shared connected WSUS's existing product/classification/language coverage and downloaded-file coverage with its owner. The export cannot create missing content.
 - Agree on a separate connected acquisition workflow if the existing files are insufficient, particularly for UUP. Do not change the shared server as a workaround.
+- Use direct local-volume paths for WSUS export and keep source/destination directories protected from concurrent changes. Verify the documented alias/reparse-point rejection on the intended server; mounted folders, UNC, mapped/SUBST and custom PowerShell drives are unsupported.
 - MSI-only application creation is intentionally limited; vendor transforms, EXE installers, dependencies, deployment scheduling and detection exceptions need human review.
 - VM creation and prerequisite installation remain documented operator tasks until hypervisor, versions and sizing are known. Import, deployments and maintenance windows are deliberate console/operator tasks rather than automatic actions.
 
