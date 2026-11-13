@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
 """
-Read-only example_admin readiness discovery for RHEL 9.
-
-Illustrative baseline only; review and adapt privately before use:
-  Account:        example_admin
-  UID:            20000
-  Private group:  example_admin
-  GID:            20000
-  Home:           /home/example_admin
-  Home mode:      0700
-  Shell:          /bin/bash
-  Comment:        Local Administrative Account
-  Privilege:      member of wheel
-  Password age:   max 60, min 1, warn 14, inactive 60
-  Lockout:        deny 3, unlock_time 900 seconds
+Read-only local-account readiness discovery for RHEL 9.
+Supply an approved private JSON policy with --policy; never edit source values.
 
 Inventory format:
   hostname_or_ip,existing_ssh_username
@@ -48,32 +36,52 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from account_policy import load_policy, policy_digest, policy_summary, shell_assignments, validate_policy
 
 
-ACCOUNT = "example_admin"
-TARGET_UID = 20000
-TARGET_GID = 20000
-TARGET_HOME = "/home/example_admin"
-TARGET_SHELL = "/bin/bash"
-TARGET_COMMENT = "Local Administrative Account"
-
-REPORT_DIR = Path("/var/log/example_admin_assessment")
+REPORT_DIR = Path("/var/log/local_admin_assessment")
 REPORT_FILE = REPORT_DIR / "latest.json"
 
 SSH_TIMEOUT = 60
 RETRIES = 1
-MARKER = "@@EXAMPLE_ADMIN@@"
+MARKER = "@@LOCAL_ADMIN@@"
 
 
 REMOTE_SCRIPT = r"""#!/bin/bash
 # Read-only script. This entire script runs with sudo privileges.
 set +e
+__POLICY_ASSIGNMENTS__
 
 emit() {
     local key="$1"
     local value="$2"
     value="$(printf '%s' "$value" | base64 | tr -d '\n')"
-    printf '@@EXAMPLE_ADMIN@@\t%s\t%s\n' "$key" "$value"
+    printf '@@LOCAL_ADMIN@@\t%s\t%s\n' "$key" "$value"
+}
+
+# Count only on the root filesystem. pipefail must cover find/timeout AND wc;
+# otherwise a failed traversal can be hidden by wc's successful exit status.
+collect_ownership_count() {
+    local uid="$1" count status
+    if [[ "$uid" =~ ^[0-9]+$ ]]; then
+        count="$(set -o pipefail; timeout --kill-after=5s 30s find / -xdev -uid "$uid" -printf '.' 2>/dev/null | wc -c)"
+        status=$?
+    else
+        status=1
+    fi
+    if [ "$status" -eq 0 ] && [[ "$count" =~ ^[[:space:]]*[0-9]+[[:space:]]*$ ]]; then
+        emit "account_owned_file_count" "$(printf '%s' "$count" | tr -d '[:space:]')"
+        emit "ownership_scan_status" "COMPLETE"
+        return 0
+    fi
+    emit "account_owned_file_count" "UNAVAILABLE"
+    if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+        emit "ownership_scan_status" "TIMEOUT"
+    else
+        emit "ownership_scan_status" "FAILED"
+    fi
+    emit "ownership_scan_exit_code" "$status"
+    return 1
 }
 
 emit "hostname" "$(hostname -f 2>/dev/null || hostname 2>/dev/null)"
@@ -83,30 +91,31 @@ emit "kernel" "$(uname -r 2>/dev/null || true)"
 
 # Required discovery data.
 emit "uid_zero_accounts" "$(awk -F: '$3 == 0 {print $1 ":" $3 ":" $4 ":" $6 ":" $7}' /etc/passwd 2>/dev/null)"
-emit "wheel_group" "$(getent group wheel 2>/dev/null || true)"
-emit "example_admin_passwd" "$(getent passwd example_admin 2>/dev/null || true)"
-emit "example_admin_group" "$(getent group example_admin 2>/dev/null || true)"
-emit "uid_20000_owner" "$(getent passwd 20000 2>/dev/null || true)"
-emit "gid_20000_owner" "$(getent group 20000 2>/dev/null || true)"
-emit "example_admin_id" "$(id example_admin 2>/dev/null || true)"
-emit "example_admin_passwd_status" "$(passwd -S example_admin 2>/dev/null || true)"
-emit "example_admin_chage" "$(chage -l example_admin 2>/dev/null || true)"
-emit "example_admin_sudo" "$(sudo -l -U example_admin 2>/dev/null || true)"
+emit "privileged_group" "$(getent group "$PRIVILEGED_GROUP" 2>/dev/null || true)"
+account_record="$(getent passwd "$ACCOUNT" 2>/dev/null || true)"
+emit "account_passwd" "$account_record"
+emit "account_group" "$(getent group "$GROUP" 2>/dev/null || true)"
+emit "target_uid_owner" "$(getent passwd "$TARGET_UID" 2>/dev/null || true)"
+emit "target_gid_owner" "$(getent group "$TARGET_GID" 2>/dev/null || true)"
+emit "account_id" "$(id "$ACCOUNT" 2>/dev/null || true)"
+emit "account_passwd_status" "$(passwd -S "$ACCOUNT" 2>/dev/null || true)"
+emit "account_chage" "$(chage -l "$ACCOUNT" 2>/dev/null || true)"
+emit "account_sudo" "$(sudo -l -U "$ACCOUNT" 2>/dev/null || true)"
 
-if [ -e /home/example_admin ]; then
-    emit "example_admin_home_stat" "$(stat -c '%n|owner=%U|uid=%u|group=%G|gid=%g|mode=%a|type=%F' /home/example_admin 2>/dev/null)"
+if [ -e "$TARGET_HOME" ]; then
+    emit "account_home_stat" "$(stat -c '%n|owner=%U|uid=%u|group=%G|gid=%g|mode=%a|type=%F' "$TARGET_HOME" 2>/dev/null)"
 else
-    emit "example_admin_home_stat" "MISSING"
+    emit "account_home_stat" "MISSING"
 fi
 
 # Return an ownership count only; do not enumerate file names.
-current_uid="$(id -u example_admin 2>/dev/null || true)"
-if [ -n "$current_uid" ]; then
-    emit "example_admin_owned_file_count" "$(
-        timeout 30 find / -xdev -uid "$current_uid" -printf '.' 2>/dev/null | wc -c
-    )"
+collection_status="COMPLETE"
+if [ -n "$account_record" ]; then
+    current_uid="$(id -u "$ACCOUNT" 2>/dev/null || true)"
+    collect_ownership_count "$current_uid" || collection_status="INCOMPLETE"
 else
-    emit "example_admin_owned_file_count" "NOT_APPLICABLE"
+    emit "account_owned_file_count" "NOT_APPLICABLE"
+    emit "ownership_scan_status" "NOT_APPLICABLE"
 fi
 
 # Password policy and lockout evidence. The script reports but does not alter it.
@@ -128,14 +137,18 @@ else
     emit "sshd_effective_password_auth" "sshd command not found"
 fi
 
-emit "sudoers_example_admin_references" "$(
-    grep -R -n -E '(^|[^[:alnum:]_])example_admin([^[:alnum:]_]|$)' \
+emit "sudoers_account_references" "$(
+    grep -R -n -E "(^|[^[:alnum:]_])${ACCOUNT}([^[:alnum:]_]|$)" \
         /etc/sudoers /etc/sudoers.d 2>/dev/null || true
 )"
 
-emit "collection_complete" "COMPLETE"
-exit 0
+emit "collection_complete" "$collection_status"
+[ "$collection_status" = "COMPLETE" ]
 """
+
+
+def build_remote_script(policy):
+    return REMOTE_SCRIPT.replace("__POLICY_ASSIGNMENTS__", shell_assignments(policy))
 
 
 def utc_now():
@@ -200,7 +213,7 @@ def decode_records(output):
     return records
 
 
-def collect_host(host, username, password):
+def collect_host(host, username, password, policy):
     """
     Connect using a local SSH client through a pseudo-terminal.
 
@@ -228,7 +241,7 @@ def collect_host(host, username, password):
         "-o", "PreferredAuthentications=keyboard-interactive,password",
         "-o", "PubkeyAuthentication=no",
         f"{username}@{host}",
-        "sudo -S -p 'EXAMPLE_ADMIN_SUDO_PROMPT:' bash -c " + shlex.quote(REMOTE_SCRIPT),
+        "sudo -S -p 'LOCAL_ADMIN_SUDO_PROMPT:' bash -c " + shlex.quote(build_remote_script(policy)),
     ]
 
     master_fd, slave_fd = pty.openpty()
@@ -291,13 +304,13 @@ def collect_host(host, username, password):
             if (
                 not ssh_password_sent
                 and "password:" in text
-                and "example_admin_sudo_prompt:" not in text
+                and "local_admin_sudo_prompt:" not in text
             ):
                 os.write(master_fd, (password + "\n").encode("utf-8"))
                 ssh_password_sent = True
 
             # Submit same password to sudo, the script is already in the remote command.
-            if not sudo_password_sent and "example_admin_sudo_prompt:" in text:
+            if not sudo_password_sent and "local_admin_sudo_prompt:" in text:
                 os.write(master_fd, (password + "\n").encode("utf-8"))
                 sudo_password_sent = True
 
@@ -326,6 +339,14 @@ def collect_host(host, username, password):
             "data": records,
         }
 
+    if records.get("collection_complete") == "INCOMPLETE":
+        records["account_owned_file_count"] = "UNAVAILABLE"
+        return {
+            "transport_status": "INCOMPLETE",
+            "error": "Ownership traversal failed or timed out; the count and collection are incomplete.",
+            "data": records,
+        }
+
     if records:
         return {
             "transport_status": "ERROR",
@@ -347,7 +368,7 @@ def collect_host(host, username, password):
     elif "permission denied" in lower:
         error = "SSH authentication failed or account is not authorized."
         status = "UNREACHABLE"
-    elif "example_admin_sudo_prompt:" in lower:
+    elif "local_admin_sudo_prompt:" in lower:
         error = "sudo authentication failed or the account lacks sudo privileges."
         status = "INSUFFICIENT_PRIVILEGE"
     else:
@@ -382,7 +403,8 @@ def split_passwd(value):
     }
 
 
-def assess_host(host, username, collection):
+def assess_host(host, username, collection, policy):
+    policy = validate_policy(policy)
     result = {
         "host": host,
         "ssh_username_used": username,
@@ -399,10 +421,30 @@ def assess_host(host, username, collection):
             "status": collection["transport_status"],
             "detail": collection["error"],
         })
+        if collection["transport_status"] == "INCOMPLETE":
+            result["evidence"] = dict(collection.get("data", {}))
+            result["evidence"]["account_owned_file_count"] = "UNAVAILABLE"
         return result
 
     data = collection["data"]
     result["evidence"] = data
+
+    scan_status = data.get("ownership_scan_status")
+    count = data.get("account_owned_file_count", "")
+    scan_valid = (
+        scan_status == "COMPLETE" and re.fullmatch(r"[0-9]+", count) is not None
+    ) or (
+        scan_status == "NOT_APPLICABLE" and count == "NOT_APPLICABLE"
+        and not data.get("account_passwd")
+    )
+    if data.get("collection_complete") != "COMPLETE" or not scan_valid:
+        result["overall_status"] = "INCOMPLETE"
+        result["evidence"] = dict(data, account_owned_file_count="UNAVAILABLE")
+        result["findings"].append({
+            "control": "OWNERSHIP_TRAVERSAL", "status": "INCOMPLETE",
+            "detail": "A successful complete ownership scan was not established; no full count is available.",
+        })
+        return result
 
     if not is_rhel9(data.get("os_release", "")):
         result["overall_status"] = "UNAUTHORIZED_OR_UNSUPPORTED_OS"
@@ -413,55 +455,56 @@ def assess_host(host, username, collection):
         })
         return result
 
-    account = split_passwd(data.get("example_admin_passwd", ""))
-    uid_owner = split_passwd(data.get("uid_20000_owner", ""))
-    gid_owner = data.get("gid_20000_owner", "").strip()
+    account = split_passwd(data.get("account_passwd", ""))
+    uid_owner = split_passwd(data.get("target_uid_owner", ""))
+    gid_owner = data.get("target_gid_owner", "").strip()
 
     conflicts = []
     remediation_items = []
 
-    # UID 20000 may only be owned by example_admin.
-    if uid_owner and uid_owner["name"] != ACCOUNT:
+    # The requested UID may only be owned by the selected account.
+    if uid_owner and uid_owner["name"] != policy["account"]:
         conflicts.append(
-            f"UID {TARGET_UID} is already assigned to account '{uid_owner['name']}'."
+            f"UID {policy['uid']} is already assigned to account '{uid_owner['name']}'."
         )
 
     # Group record format is name:password:GID:members.
     if gid_owner:
         gid_name = gid_owner.split(":", 1)[0]
-        if gid_name != ACCOUNT:
+        if gid_name != policy["group"]:
             conflicts.append(
-                f"GID {TARGET_GID} is already assigned to group '{gid_name}'."
+                f"GID {policy['gid']} is already assigned to group '{gid_name}'."
             )
 
     if not account:
-        remediation_items.append("example_admin account is absent and can be created if no UID/GID conflict exists.")
+        remediation_items.append(f"{policy['account']} account is absent and can be created if no UID/GID conflict exists.")
     else:
-        if account["uid"] != str(TARGET_UID):
+        if account["uid"] != str(policy["uid"]):
             remediation_items.append(
-                f"Account UID is {account['uid']}; required UID is {TARGET_UID}."
+                f"Account UID is {account['uid']}; required UID is {policy['uid']}."
             )
-        if account["gid"] != str(TARGET_GID):
+        if account["gid"] != str(policy["gid"]):
             remediation_items.append(
-                f"Account primary GID is {account['gid']}; required GID is {TARGET_GID}."
+                f"Account primary GID is {account['gid']}; required GID is {policy['gid']}."
             )
-        if account["comment"] != TARGET_COMMENT:
+        if account["comment"] != policy["comment"]:
             remediation_items.append("Account comment does not match the required standard.")
-        if account["home"] != TARGET_HOME:
+        if account["home"] != policy["home"]:
             remediation_items.append("Account home directory does not match the required standard.")
-        if account["shell"] != TARGET_SHELL:
+        if account["shell"] != policy["shell"]:
             remediation_items.append("Account login shell does not match the required standard.")
 
-        home_stat = data.get("example_admin_home_stat", "")
+        home_stat = data.get("account_home_stat", "")
+        home_fields = dict(item.split("=", 1) for item in home_stat.split("|") if "=" in item)
         if home_stat == "MISSING":
             remediation_items.append("Required home directory is missing.")
-        elif "mode=700" not in home_stat:
-            remediation_items.append("Home directory mode is not 0700.")
+        elif home_fields.get("mode") != policy["home_mode"].lstrip("0"):
+            remediation_items.append(f"Home directory mode is not {policy['home_mode']}.")
 
-        wheel = data.get("wheel_group", "")
-        wheel_members = wheel.split(":")[-1].split(",") if wheel else []
-        if ACCOUNT not in wheel_members:
-            remediation_items.append("Account is not listed as a wheel-group member.")
+        privileged = data.get("privileged_group", "")
+        privileged_members = privileged.split(":")[-1].split(",") if privileged else []
+        if policy["account"] not in privileged_members:
+            remediation_items.append(f"Account is not listed as a {policy['privileged_group']}-group member.")
 
     if conflicts:
         result["overall_status"] = "UID_GID_CONFLICT"
@@ -477,16 +520,16 @@ def assess_host(host, username, collection):
         result["overall_status"] = "READY_FOR_REMEDIATION"
         for item in remediation_items:
             result["findings"].append({
-                "control": "EXAMPLE_ADMIN_BASELINE",
+                "control": "LOCAL_ADMIN_BASELINE",
                 "status": "REMEDIATION_REQUIRED",
                 "detail": item,
             })
     else:
         result["overall_status"] = "BASELINE_MATCHES_DISCOVERY"
         result["findings"].append({
-            "control": "EXAMPLE_ADMIN_BASELINE",
+            "control": "LOCAL_ADMIN_BASELINE",
             "status": "PASS",
-            "detail": "Account attributes match the defined example_admin baseline.",
+            "detail": f"Account attributes match the selected {policy['account']} policy.",
         })
 
     # Password policy and faillock data are evidence only in this discovery phase.
@@ -495,8 +538,10 @@ def assess_host(host, username, collection):
         "status": "INFORMATIONAL",
         "detail": (
             "Discovery collected password-aging and faillock evidence. "
-            "Later remediation should enforce max=60, min=1, warn=14, "
-            "inactive=60, deny=3, unlock_time=900."
+            f"Selected policy: max={policy['password_max_days']}, min={policy['password_min_days']}, "
+            f"warn={policy['password_warn_days']}, inactive={policy['password_inactive_days']}, "
+            f"deny={policy['faillock_deny']}, unlock_time={policy['faillock_unlock_time_seconds']}. "
+            "Faillock changes require the separate --manage-faillock option."
         ),
     })
 
@@ -525,8 +570,9 @@ def write_report(report):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Read-only example_admin readiness discovery for RHEL 9."
+        description="Read-only policy-driven local-account discovery for RHEL 9."
     )
+    parser.add_argument("--policy", required=True, help="Approved private JSON policy; see policy.example.json and README.md.")
     parser.add_argument(
         "--inventory",
         required=True,
@@ -542,31 +588,20 @@ def main():
         return 2
 
     try:
+        policy = load_policy(args.policy)
         inventory = read_inventory(args.inventory)
     except Exception as exc:
-        print(f"ERROR: Inventory error: {exc}", file=sys.stderr)
+        print(f"ERROR: Input error: {exc}", file=sys.stderr)
         return 2
 
+    print(policy_summary(policy))
+
     report = {
-        "report_type": "example_admin_readiness_discovery",
+        "report_type": "local_admin_readiness_discovery",
+        "schema_version": 2,
         "generated_utc": utc_now(),
-        "target_baseline": {
-            "account": ACCOUNT,
-            "uid": TARGET_UID,
-            "group": ACCOUNT,
-            "gid": TARGET_GID,
-            "home": TARGET_HOME,
-            "home_mode": "0700",
-            "shell": TARGET_SHELL,
-            "comment": TARGET_COMMENT,
-            "wheel_membership_required": True,
-            "password_max_days": 60,
-            "password_min_days": 1,
-            "password_warn_days": 14,
-            "password_inactive_days": 60,
-            "faillock_deny": 3,
-            "faillock_unlock_time_seconds": 900,
-        },
+        "policy": policy,
+        "policy_sha256": policy_digest(policy),
         "execution": {
             "inventory": os.path.abspath(args.inventory),
             "remote_actions": "READ_ONLY",
@@ -607,13 +642,13 @@ def main():
         last_collection = None
         for attempt in range(1, RETRIES + 2):
             print(f"Collecting read-only evidence (attempt {attempt})...")
-            last_collection = collect_host(host, username, password)
+            last_collection = collect_host(host, username, password, policy)
             if last_collection["transport_status"] == "SUCCESS":
                 break
             if attempt <= RETRIES:
                 time.sleep(2)
 
-        host_result = assess_host(host, username, last_collection)
+        host_result = assess_host(host, username, last_collection, policy)
         host_result["collection_attempts"] = attempt
         report["hosts"].append(host_result)
 
@@ -651,6 +686,7 @@ def main():
         "INSUFFICIENT_PRIVILEGE",
         "NOT_ASSESSED",
         "ERROR",
+        "INCOMPLETE",
     }
 
     return 1 if any(h["overall_status"] in nonzero for h in report["hosts"]) else 0

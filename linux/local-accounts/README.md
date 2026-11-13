@@ -4,24 +4,50 @@ These tools work together but are separate commands:
 
 - `local_admin_discovery.py` collects preliminary account and policy evidence.
 - `local_admin_remediation.py` defaults to a remote preflight. Only `--apply`
-  creates or changes the illustrative local administrator account.
+  creates or changes the account selected by an approved private runtime policy.
 
 **Full runtime and lab validation are incomplete.**
 The examples below are not evidence of a completed lab test or permission to
 change operational systems.
 
-## Illustrative baseline, not organizational policy
+## Prepare one private runtime policy
 
-Both scripts use `example_admin`, UID/GID `20000`, `/home/example_admin`, and
-`/bin/bash`. The example account is added to `wheel`, uses home mode `0700`, and
-has password aging values max/min/warn/inactive of 60/1/14/60 days. Optional
-faillock values are deny 3 and unlock time 900 seconds.
+Both commands require `--policy /path/to/private/account-policy.json`. Copy the
+synthetic [policy.example.json](policy.example.json) outside the repository and
+have the responsible owner supply approved values there. Pass that same file to
+discovery and remediation. No source-code edits are needed. Keep
+`account_policy.py` beside either script; it is their shared policy validator.
 
-These values are placeholders, not a required CSfC or organizational baseline.
-Have the responsible owner select the intended policy before use. Adapt both
-scripts together in a private working copy, including their embedded Bash and
-reported baseline. Changing a Python constant alone does not change every
-embedded shell value. Do not commit actual account names or deployment policy.
+The example contains `example_admin`, UID/GID `20000`, `/home/example_admin`, and
+`/bin/bash`, with `wheel` membership, home mode `0700`, aging 60/1/14/60 days and
+optional faillock deny 3/unlock 900 seconds. These are synthetic placeholders,
+not a CSfC requirement or an organization-approved policy. Never put passwords,
+private inventories, actual deployment policy or reports in the repository.
+
+Every field in the example is required. Unknown fields, duplicate JSON keys,
+non-finite numbers, booleans used as integers, and implicit conversions are
+refused. Policies are limited to 16 KiB. Supported values are:
+
+| Fields | Validation |
+| --- | --- |
+| `schema_version` | Integer `1`. |
+| `account`, `group`, `privileged_group` | Lowercase Linux names of 1–31 characters: first a letter/underscore, then letters, digits, underscores or hyphens. `root`, `nobody`, and `nfsnobody` are refused. The private group must differ from the supplementary privileged group. |
+| `uid`, `gid` | Integers 1000–2147483647, excluding reserved ID 65534. Existing identity safety checks still apply. |
+| `home` | An absolute child path under `/home` or `/srv`, using letters, digits, underscores and hyphens. No dot components, repeated/trailing slash, symlink or shared/foreign home is accepted. |
+| `home_mode` | String `"0700"` or `"0750"`. |
+| `shell` | `/bin/bash`, `/bin/sh`, `/usr/bin/bash`, or `/usr/bin/sh`; it must be executable on the target. |
+| `comment` | 1–128 printable ASCII characters without a colon. Shell characters remain literal data. |
+| `password_max_days` | Integer 1–99999. |
+| `password_min_days`, `password_warn_days` | Integers 0–99999, no greater than `password_max_days`. |
+| `password_inactive_days` | Integer 0–99999. |
+| `faillock_deny` | Integer 1–100. |
+| `faillock_unlock_time_seconds` | Integer 1–604800. |
+
+Both commands display the complete selected policy and its SHA-256 digest
+before asking for credentials or contacting a target. Reports contain the same
+normalized policy and digest. This digest identifies policy contents; it does
+not establish approval. The privileged supplementary group must already exist;
+these tools do not create it or configure sudoers privileges.
 
 ## Requirements
 
@@ -63,7 +89,8 @@ python3 local_admin_discovery.py --help
 
 # Discovery reads remote account/policy evidence and writes a local report.
 sudo python3 local_admin_discovery.py \
-  --inventory /path/to/private/inventory.csv
+  --inventory /path/to/private/inventory.csv \
+  --policy /path/to/private/account-policy.json
 
 # Capture immediately after the script returns.
 result=$?
@@ -72,16 +99,23 @@ printf 'Discovery exit code: %s\n' "$result"
 
 The script prompts separately for each existing SSH/sudo password. It does not
 change target accounts. Discovery may retry a failed read-only collection once.
-Its report is `/var/log/example_admin_assessment/latest.json`.
+Its report is `/var/log/local_admin_assessment/latest.json`.
 
 `BASELINE_MATCHES_DISCOVERY` describes the attributes actually compared. It does
 not certify password, lockout, sudo, or overall security policy. Those additional
 items include collected evidence that requires a later human review.
-`READY_FOR_REMEDIATION` means illustrative attributes differ, not that a change
+`READY_FOR_REMEDIATION` means selected policy attributes differ, not that a change
 has been approved. `UID_GID_CONFLICT` must be resolved before remediation.
 
 Collection requires its completion record and successful SSH exit. A partial
 response is an error rather than usable complete evidence.
+The ownership scan is limited to the root filesystem (`find / -xdev`), with a
+30-second timeout and a further five-second termination grace period. A successful
+scan may legitimately count zero files. Permission/traversal/counting errors or a
+timeout produce `INCOMPLETE`, `ownership_scan_status` of `FAILED`/`TIMEOUT`, and
+`account_owned_file_count` of `UNAVAILABLE`; a partial numeric count is discarded.
+An absent account produces `NOT_APPLICABLE`. These counts never cover separate
+mounts and are not a migration plan.
 
 ## 3. Prepare remediation preflight
 
@@ -89,11 +123,12 @@ response is an error rather than usable complete evidence.
 # Default mode connects to targets and checks eligibility, but does not change accounts.
 # It still uses sudo and writes a local report.
 sudo python3 local_admin_remediation.py \
-  --inventory /path/to/private/inventory.csv
+  --inventory /path/to/private/inventory.csv \
+  --policy /path/to/private/account-policy.json
 ```
 
 `DRY_RUN_READY` means the implemented preflight completed. It does not verify that
-all later commands would succeed or that the example baseline is appropriate.
+all later commands would succeed or that the selected policy is approved.
 
 The preflight refuses conflicts at the desired UID/GID and refuses unsafe
 existing identities, including protected/system IDs, shared source IDs, or
@@ -114,14 +149,15 @@ identity or home directory. Do not bypass them to make a preflight appear green.
 # MUTATING COMMAND: use only after the review/test phase and change approval.
 sudo python3 local_admin_remediation.py \
   --inventory /path/to/private/inventory.csv \
+  --policy /path/to/private/account-policy.json \
   --apply
 ```
 
 Apply mode requires typing `APPLY`, entering and confirming the new account's
 vault-managed password, and supplying each current SSH/sudo password. The script
-creates/normalizes the account and private group, adds `wheel` membership, sets
+creates/normalizes the account and private group, adds the selected privileged-group membership, sets
 home ownership/mode, changes the password and aging values, and unlocks the
-account. It does not configure sudoers to grant wheel privileges.
+account. It does not configure sudoers to grant the group privileges.
 
 If separately authorized, `--manage-faillock` additionally edits
 `/etc/security/faillock.conf`. **This is a system-wide change**, not an
@@ -148,7 +184,9 @@ state, ownership, and private evidence with the responsible operator first.
 
 Both report directories use mode 0700 and their files use mode 0600. Each run
 replaces its own `latest.json`; preserve needed evidence privately beforehand.
-The remediation report is `/var/log/example_admin_remediation/latest.json`.
+The remediation report is `/var/log/local_admin_remediation/latest.json`.
+Report schema version `2` uses account-neutral evidence keys, `policy`, and
+`policy_sha256`; consumers of older hardcoded-account keys must be updated.
 Reports contain identity and policy evidence and are not sanitized for sharing.
 Remediation saves an `IN_PROGRESS` report before the first target and updates it
 after each host returns. It stops if a report write fails. `COMPLETE` means the
@@ -172,7 +210,7 @@ Remediation exits `0` only when every target has the expected result for the
 selected mode (or when the operator cancels at the initial confirmation without
 making changes). Any other target result returns `1`. Input/report failures
 return `2`. Discovery likewise returns nonzero for findings that do not already
-match its illustrative baseline; inspect the report rather than assuming a
+match its selected policy; inspect the report rather than assuming a
 nonzero code always means the script itself crashed.
 
 See the [validation guide](../../docs/validation.md). Actual SSH/sudo behavior

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Remediate an illustrative temporary account: example_admin
-
-Example identity/policy only. Review and adapt privately before use.
+Remediate an approved local-account policy on RHEL 9.
+Supply the same private --policy JSON used for discovery; do not edit source values.
 
 Inventory format:
     hostname_or_ip,existing_ssh_username
@@ -33,41 +32,22 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from account_policy import load_policy, policy_digest, policy_summary, shell_assignments
 
-
-ACCOUNT = "example_admin"
-UID = 20000
-GID = 20000
-HOME = "/home/example_admin"
-SHELL = "/bin/bash"
-COMMENT = "Local Administrative Account"
-
-PASS_MAX_DAYS = 60
-PASS_MIN_DAYS = 1
-PASS_WARN_DAYS = 14
-PASS_INACTIVE_DAYS = 60
-
-FAILLOCK_DENY = 3
-FAILLOCK_UNLOCK_SECONDS = 900
 
 TIMEOUT_SECONDS = 60
 RETRIES = 1
 
-REPORT_DIR = Path("/var/log/example_admin_remediation")
+REPORT_DIR = Path("/var/log/local_admin_remediation")
 REPORT_FILE = REPORT_DIR / "latest.json"
 
-MARKER = "@@EXAMPLE_ADMIN_REMEDIATION@@"
+MARKER = "@@LOCAL_ADMIN_REMEDIATION@@"
 
 
 REMOTE_TEMPLATE = r"""#!/bin/bash
 set +e
 
-ACCOUNT="example_admin"
-TARGET_UID="20000"
-TARGET_GID="20000"
-TARGET_HOME="/home/example_admin"
-TARGET_SHELL="/bin/bash"
-TARGET_COMMENT="Local Administrative Account"
+__POLICY_ASSIGNMENTS__
 APPLY_MODE="__APPLY_MODE__"
 MANAGE_FAILLOCK="__MANAGE_FAILLOCK__"
 
@@ -75,7 +55,7 @@ emit() {
     local key="$1"
     local value="$2"
     value="$(printf '%s' "$value" | base64 | tr -d '\n')"
-    printf '@@EXAMPLE_ADMIN_REMEDIATION@@\t%s\t%s\n' "$key" "$value"
+    printf '@@LOCAL_ADMIN_REMEDIATION@@\t%s\t%s\n' "$key" "$value"
 }
 
 fail() {
@@ -139,7 +119,7 @@ if ! is_rhel9; then
     exit 1
 fi
 
-# Safety preflight: UID/GID 20000 cannot belong to any other identity.
+# Safety preflight: the requested UID/GID cannot belong to another identity.
 uid_owner="$(getent passwd "$TARGET_UID" 2>/dev/null || true)"
 if [ -n "$uid_owner" ]; then
     uid_name="$(printf '%s' "$uid_owner" | cut -d: -f1)"
@@ -153,7 +133,7 @@ fi
 gid_owner="$(getent group "$TARGET_GID" 2>/dev/null || true)"
 if [ -n "$gid_owner" ]; then
     gid_name="$(printf '%s' "$gid_owner" | cut -d: -f1)"
-    if [ "$gid_name" != "$ACCOUNT" ]; then
+    if [ "$gid_name" != "$GROUP" ]; then
         emit "result" "UID_GID_CONFLICT"
         emit "failure_reason" "GID ${TARGET_GID} belongs to existing group: ${gid_name}"
         exit 1
@@ -161,7 +141,7 @@ if [ -n "$gid_owner" ]; then
 fi
 
 existing_account="$(getent passwd "$ACCOUNT" 2>/dev/null || true)"
-existing_group="$(getent group "$ACCOUNT" 2>/dev/null || true)"
+existing_group="$(getent group "$GROUP" 2>/dev/null || true)"
 
 emit "preflight_existing_account" "$existing_account"
 emit "preflight_existing_group" "$existing_group"
@@ -184,7 +164,7 @@ if [ -n "$existing_group" ]; then
     source_gid="$(printf '%s' "$existing_group" | cut -d: -f3)"
     [ "$source_gid" = "$TARGET_GID" ] \
         || fail "Existing group has a different GID; reconcile it manually before running this tool."
-    local_identity_is_safe /etc/group "$ACCOUNT" "$source_gid" \
+    local_identity_is_safe /etc/group "$GROUP" "$source_gid" \
         || fail "Existing group is not a unique normal local identity; reconcile it manually."
     [ "$(getent group "$source_gid")" = "$existing_group" ] \
         || fail "Source GID lookup is ambiguous; resolve group ownership manually."
@@ -205,25 +185,28 @@ if [ -e "$TARGET_HOME" ]; then
         || fail "Existing home is owned by another identity; reconcile it manually."
 fi
 
+getent group "$PRIVILEGED_GROUP" >/dev/null 2>&1 || fail "Required privileged supplementary group does not exist."
+[ -x "$TARGET_SHELL" ] || fail "The policy login shell is not executable on this target."
+
 if [ "$APPLY_MODE" != "true" ]; then
     emit "result" "DRY_RUN_READY"
     emit "detail" "No conflicts detected. Target is eligible for remediation."
     exit 0
 fi
 
-# Receive the new example_admin password only after sudo authentication succeeded.
+# Receive the selected account's password only after sudo authentication succeeded.
 # read -s prevents terminal echo. The password is not logged or written to disk.
-printf '@@EXAMPLE_ADMIN_NEW_PASSWORD_PROMPT@@\n'
+printf '@@LOCAL_ADMIN_NEW_PASSWORD_PROMPT@@\n'
 IFS= read -r -s NEW_PASSWORD
 printf '\n'
 
 if [ -z "$NEW_PASSWORD" ]; then
-    fail "No example_admin password was provided."
+    fail "No password was provided for ${ACCOUNT}."
 fi
 
 # Create the private primary group if absent. Existing GID mismatches are refused.
-if ! getent group "$ACCOUNT" >/dev/null 2>&1; then
-    groupadd -g "$TARGET_GID" "$ACCOUNT" || fail "Could not create group ${ACCOUNT}."
+if ! getent group "$GROUP" >/dev/null 2>&1; then
+    groupadd -g "$TARGET_GID" "$GROUP" || fail "Could not create group ${GROUP}."
 fi
 
 if ! getent passwd "$ACCOUNT" >/dev/null 2>&1; then
@@ -263,12 +246,12 @@ else
 fi
 
 # Ensure required local access properties.
-usermod -aG wheel "$ACCOUNT" || fail "Could not add ${ACCOUNT} to wheel."
+usermod -aG "$PRIVILEGED_GROUP" "$ACCOUNT" || fail "Could not add ${ACCOUNT} to ${PRIVILEGED_GROUP}."
 home_path_is_safe "$TARGET_HOME" || fail "Home path became unsafe; inspect partial changes."
 mkdir -p "$TARGET_HOME" || fail "Could not create home directory."
 home_path_is_safe "$TARGET_HOME" || fail "Home path became unsafe; inspect partial changes."
-chown "$ACCOUNT:$ACCOUNT" "$TARGET_HOME" || fail "Could not set home ownership."
-chmod 0700 "$TARGET_HOME" || fail "Could not set home mode to 0700."
+chown "$ACCOUNT:$GROUP" "$TARGET_HOME" || fail "Could not set home ownership."
+chmod "$HOME_MODE" "$TARGET_HOME" || fail "Could not set home mode to ${HOME_MODE}."
 
 # Set shared vault-managed password without writing it to disk.
 printf '%s:%s\n' "$ACCOUNT" "$NEW_PASSWORD" | chpasswd || fail "Could not set account password."
@@ -276,19 +259,19 @@ unset NEW_PASSWORD
 
 # Apply account-specific password aging.
 chage \
-    -M 60 \
-    -m 1 \
-    -W 14 \
-    -I 60 \
+    -M "$PASS_MAX_DAYS" \
+    -m "$PASS_MIN_DAYS" \
+    -W "$PASS_WARN_DAYS" \
+    -I "$PASS_INACTIVE_DAYS" \
     "$ACCOUNT" || fail "Could not set password aging."
 
-# Unlock example_admin in case it was previously locked.
+# Unlock the selected account in case it was previously locked.
 passwd -u "$ACCOUNT" >/dev/null 2>&1 || fail "Could not unlock ${ACCOUNT}."
 
 # Optional: global faillock configuration. This affects locally authenticated users.
 if [ "$MANAGE_FAILLOCK" = "true" ]; then
-    ensure_faillock_setting "deny" "3" || fail "Could not set faillock deny value."
-    ensure_faillock_setting "unlock_time" "900" || fail "Could not set faillock unlock time."
+    ensure_faillock_setting "deny" "$FAILLOCK_DENY" || fail "Could not set faillock deny value."
+    ensure_faillock_setting "unlock_time" "$FAILLOCK_UNLOCK_SECONDS" || fail "Could not set faillock unlock time."
     emit "faillock_action" "UPDATED_GLOBAL_FAILLOCK_CONF"
 else
     emit "faillock_action" "NOT_CHANGED"
@@ -296,18 +279,18 @@ fi
 
 # Post-remediation validation.
 final_passwd="$(getent passwd "$ACCOUNT" 2>/dev/null || true)"
-final_group="$(getent group "$ACCOUNT" 2>/dev/null || true)"
+final_group="$(getent group "$GROUP" 2>/dev/null || true)"
 final_id="$(id "$ACCOUNT" 2>/dev/null || true)"
 final_home="$(stat -c '%n|owner=%U|uid=%u|group=%G|gid=%g|mode=%a' "$TARGET_HOME" 2>/dev/null || true)"
 final_chage="$(chage -l "$ACCOUNT" 2>/dev/null || true)"
-wheel_group="$(getent group wheel 2>/dev/null || true)"
+privileged_group="$(getent group "$PRIVILEGED_GROUP" 2>/dev/null || true)"
 
 emit "final_passwd" "$final_passwd"
 emit "final_group" "$final_group"
 emit "final_id" "$final_id"
 emit "final_home" "$final_home"
 emit "final_chage" "$final_chage"
-emit "final_wheel_group" "$wheel_group"
+emit "final_privileged_group" "$privileged_group"
 
 if ! id "$ACCOUNT" >/dev/null 2>&1; then
     fail "Post-remediation validation could not find ${ACCOUNT}."
@@ -321,18 +304,30 @@ if [ "$(id -g "$ACCOUNT")" != "$TARGET_GID" ]; then
     fail "Post-remediation GID validation failed."
 fi
 
-if ! id -nG "$ACCOUNT" | tr ' ' '\n' | grep -qx "wheel"; then
-    fail "Post-remediation wheel membership validation failed."
+if ! id -nG "$ACCOUNT" | tr ' ' '\n' | grep -qx "$PRIVILEGED_GROUP"; then
+    fail "Post-remediation privileged-group membership validation failed."
 fi
 
-if [ ! -d "$TARGET_HOME" ] || [ "$(stat -c '%a' "$TARGET_HOME")" != "700" ]; then
+if [ ! -d "$TARGET_HOME" ] || [ "$(stat -c '%a' "$TARGET_HOME")" != "${HOME_MODE#0}" ]; then
     fail "Post-remediation home-directory validation failed."
 fi
 
+[ "$(printf '%s' "$final_passwd" | cut -d: -f5)" = "$TARGET_COMMENT" ] \
+    && [ "$(printf '%s' "$final_passwd" | cut -d: -f6)" = "$TARGET_HOME" ] \
+    && [ "$(printf '%s' "$final_passwd" | cut -d: -f7)" = "$TARGET_SHELL" ] \
+    || fail "Post-remediation account attributes differ from the selected policy."
+
 emit "result" "REMEDIATED"
-emit "detail" "example_admin was created or normalized successfully."
+emit "detail" "${ACCOUNT} was created or normalized successfully."
 exit 0
 """
+
+
+def build_remote_script(policy, apply_mode=False, manage_faillock=False):
+    template = REMOTE_TEMPLATE.replace(
+        "__APPLY_MODE__", "true" if apply_mode else "false"
+    ).replace("__MANAGE_FAILLOCK__", "true" if manage_faillock else "false")
+    return template.replace("__POLICY_ASSIGNMENTS__", shell_assignments(policy))
 
 
 def now_utc():
@@ -399,17 +394,13 @@ def decode_records(output):
     return result
 
 
-def run_remote(host, username, current_password, new_password, apply_mode, manage_faillock):
+def run_remote(host, username, current_password, new_password, apply_mode, manage_faillock, policy):
     ssh = shutil.which("ssh")
     setsid = shutil.which("setsid")
     if not ssh or not setsid:
         return {"status": "ERROR", "error": "OpenSSH 'ssh' and util-linux 'setsid' must be available in PATH.", "data": {}}
 
-    script = REMOTE_TEMPLATE.replace(
-        "__APPLY_MODE__", "true" if apply_mode else "false"
-    ).replace(
-        "__MANAGE_FAILLOCK__", "true" if manage_faillock else "false"
-    )
+    script = build_remote_script(policy, apply_mode, manage_faillock)
 
     command = [
         # Give SSH this PTY as its controlling terminal, including /dev/tty.
@@ -423,7 +414,7 @@ def run_remote(host, username, current_password, new_password, apply_mode, manag
         "-o", "PreferredAuthentications=keyboard-interactive,password",
         "-o", "PubkeyAuthentication=no",
         f"{username}@{host}",
-        "sudo -S -p 'EXAMPLE_ADMIN_SUDO_PROMPT:' bash -c " + shlex.quote(script),
+        "sudo -S -p 'LOCAL_ADMIN_SUDO_PROMPT:' bash -c " + shlex.quote(script),
     ]
 
     master, slave = pty.openpty()
@@ -482,21 +473,21 @@ def run_remote(host, username, current_password, new_password, apply_mode, manag
             if (
                 not ssh_password_sent
                 and "password:" in text
-                and "example_admin_sudo_prompt:" not in text
+                and "local_admin_sudo_prompt:" not in text
             ):
                 os.write(master, (current_password + "\n").encode())
                 ssh_password_sent = True
 
             # Existing administrative account password for sudo.
-            if not sudo_password_sent and "example_admin_sudo_prompt:" in text:
+            if not sudo_password_sent and "local_admin_sudo_prompt:" in text:
                 os.write(master, (current_password + "\n").encode())
                 sudo_password_sent = True
 
-            # New vault-managed example_admin password is read remotely with `read -s`.
+            # The selected account's new password is read remotely with `read -s`.
             if (
                 apply_mode
                 and not new_password_sent
-                and "@@example_admin_new_password_prompt@@" in text
+                and "@@local_admin_new_password_prompt@@" in text
             ):
                 os.write(master, (new_password + "\n").encode())
                 new_password_sent = True
@@ -567,8 +558,9 @@ def write_report(report):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Create or normalize example_admin on RHEL 9 hosts."
+        description="Create or normalize an approved private account policy on RHEL 9 hosts."
     )
+    parser.add_argument("--policy", required=True, help="Approved private JSON policy; see policy.example.json and README.md.")
     parser.add_argument(
         "--inventory",
         required=True,
@@ -582,7 +574,7 @@ def main():
     parser.add_argument(
         "--manage-faillock",
         action="store_true",
-        help="Set global faillock deny=3 and unlock_time=900 on targets.",
+        help="Set system-wide faillock values from the selected private policy on targets.",
     )
     args = parser.parse_args()
 
@@ -594,22 +586,26 @@ def main():
         return 2
 
     try:
+        policy = load_policy(args.policy)
         inventory = read_inventory(args.inventory)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
     new_password = None
+    print(policy_summary(policy))
 
     if args.apply:
-        print("This will create or modify example_admin on all eligible targets.")
+        print(f"This will create or modify {policy['account']} on all eligible targets using the policy above.")
+        if args.manage_faillock:
+            print("The selected faillock values will also change system-wide authentication policy.")
         confirmation = input("Type APPLY to continue: ").strip()
         if confirmation != "APPLY":
             print("No changes made.")
             return 0
 
         new_password = getpass.getpass(
-            "Vault-managed password for new example_admin account: "
+            f"Vault-managed password for {policy['account']}: "
         )
         confirm_password = getpass.getpass(
             "Re-enter vault-managed password for confirmation: "
@@ -620,29 +616,15 @@ def main():
             return 2
 
     report = {
-        "report_type": "example_admin_remediation",
+        "report_type": "local_admin_remediation",
+        "schema_version": 2,
         "generated_utc": now_utc(),
         "mode": "APPLY" if args.apply else "DRY_RUN",
         "run_status": "IN_PROGRESS",
         "planned_host_count": len(inventory),
         "manage_faillock": args.manage_faillock,
-        "baseline": {
-            "account": ACCOUNT,
-            "uid": UID,
-            "gid": GID,
-            "group": ACCOUNT,
-            "home": HOME,
-            "home_mode": "0700",
-            "shell": SHELL,
-            "comment": COMMENT,
-            "wheel_required": True,
-            "password_max_days": PASS_MAX_DAYS,
-            "password_min_days": PASS_MIN_DAYS,
-            "password_warn_days": PASS_WARN_DAYS,
-            "password_inactive_days": PASS_INACTIVE_DAYS,
-            "faillock_deny": FAILLOCK_DENY,
-            "faillock_unlock_time_seconds": FAILLOCK_UNLOCK_SECONDS,
-        },
+        "policy": policy,
+        "policy_sha256": policy_digest(policy),
         "hosts": [],
         "summary": {},
     }
@@ -678,6 +660,7 @@ def main():
                     new_password=new_password or "",
                     apply_mode=args.apply,
                     manage_faillock=args.manage_faillock,
+                    policy=policy,
                 )
                 if args.apply or response["status"] not in {"ERROR", "TIMEOUT"}:
                     break
