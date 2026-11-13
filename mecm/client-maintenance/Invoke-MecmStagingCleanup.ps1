@@ -42,7 +42,7 @@ $worker = {
     try {
         # Native handles keep every ancestor from being renamed while in use.
         # OPEN_REPARSE_POINT plus final-path equality rejects junctions, symlinks,
-        # short-name/substituted-drive aliases. File operations require one link.
+        # short-name/substituted-drive aliases. Files are checked for one link at open.
         Add-Type -TypeDefinition @'
 using System;
 using System.IO;

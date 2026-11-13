@@ -42,11 +42,13 @@ $worker = {
     try {
         # Native handles keep every ancestor from being renamed while in use.
         # OPEN_REPARSE_POINT plus final-path equality rejects junctions, symlinks,
-        # short-name/substituted-drive aliases. File operations require one link.
+        # short-name/substituted-drive aliases. Files are checked for one link at open.
         Add-Type -TypeDefinition @'
 using System;
 using System.IO;
 using System.Text;
+using System.Collections.Generic;
+using System.Security.AccessControl;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 public static class MaintenanceFiles {
@@ -101,6 +103,38 @@ public static class MaintenanceFiles {
  public static void Delete(FileStream f) { int yes=1; if(!SetFileInformationByHandle(f.SafeFileHandle,4,ref yes,4)) throw new IOException("HandleDeletionFailed"); }
  public static byte[] Read(FileStream f,int max) { if(f.Length>max) throw new IOException("FileTooLarge"); f.Position=0; byte[] bytes=new byte[(int)f.Length]; int at=0; while(at<bytes.Length) { int n=f.Read(bytes,at,bytes.Length-at); if(n==0) throw new IOException("ShortRead"); at+=n; } return bytes; }
  public static string Hash(byte[] b) { using(var s=System.Security.Cryptography.SHA256.Create()) { return BitConverter.ToString(s.ComputeHash(b)).Replace("-",""); } }
+ static string AceBytes(GenericAce ace) { byte[] bytes=new byte[ace.BinaryLength]; ace.GetBinaryForm(bytes,0); return Convert.ToBase64String(bytes); }
+ static bool OrdinaryAce(GenericAce ace) {
+  CommonAce common=ace as CommonAce;
+  return common!=null && !common.IsCallback && (ace.AceType==AceType.AccessAllowed || ace.AceType==AceType.AccessDenied);
+ }
+ static List<string> DaclTokens(RawSecurityDescriptor descriptor) {
+  var tokens=new List<string>();
+  ControlFlags daclFlags=ControlFlags.DiscretionaryAclPresent|ControlFlags.DiscretionaryAclProtected|ControlFlags.DiscretionaryAclDefaulted|ControlFlags.DiscretionaryAclAutoInherited|ControlFlags.DiscretionaryAclAutoInheritRequired;
+  tokens.Add(((int)(descriptor.ControlFlags&daclFlags)).ToString());
+  RawAcl acl=descriptor.DiscretionaryAcl;
+  if(acl==null) { tokens.Add("NULL"); return tokens; }
+  tokens.Add("ACL:"+acl.Revision.ToString());
+  for(int i=0;i<acl.Count;) {
+   GenericAce first=acl[i];
+   if(!OrdinaryAce(first)) { tokens.Add("EXACT:"+AceBytes(first)); i++; continue; }
+   var run=new List<string>(); int end=i;
+   while(end<acl.Count && OrdinaryAce(acl[end]) && acl[end].AceType==first.AceType && acl[end].AceFlags==first.AceFlags) { run.Add(AceBytes(acl[end])); end++; }
+   // Only adjacent ordinary ACEs with the same allow/deny type and flags
+   // commute. Never move an ACE across a deny/allow, inherited-flag, object,
+   // callback or other unsupported boundary. Keep every binary byte and count.
+   run.Sort(StringComparer.Ordinal);
+   tokens.Add("RUN:"+((int)first.AceType).ToString()+":"+((int)first.AceFlags).ToString()+":"+String.Join(",",run.ToArray()));
+   i=end;
+  }
+  return tokens;
+ }
+ public static bool DaclEquivalent(byte[] expected,byte[] actual) {
+  var left=DaclTokens(new RawSecurityDescriptor(expected,0)); var right=DaclTokens(new RawSecurityDescriptor(actual,0));
+  if(left.Count!=right.Count) return false;
+  for(int i=0;i<left.Count;i++) if(!String.Equals(left[i],right[i],StringComparison.Ordinal)) return false;
+  return true;
+ }
 }
 '@
         $lockedDirectories = @{}
@@ -201,20 +235,27 @@ public static class MaintenanceFiles {
                 $aclText=$originalAcl.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access)
                 $backupAcl=New-Object Security.AccessControl.FileSecurity
                 $backupAcl.SetSecurityDescriptorSddlForm($aclText,[Security.AccessControl.AccessControlSections]::Access)
-                $stage='Backup'; $result.MayHaveChanged=$true; $result.OutcomeUncertain=$true; $result.BackupState='Unverified'
+                $stage='BackupCreate'; $result.MayHaveChanged=$true; $result.OutcomeUncertain=$true; $result.BackupState='Unverified'
                 $backup=[MaintenanceFiles]::NewBackup($policy.BackupPath); $held.Add($backup)
+                $stage='BackupAcl'
                 $backup.SetAccessControl($backupAcl)
+                # Inheritance from a different backup parent can add rights.
+                # Reject that drift before placing any original bytes there.
+                if (-not [MaintenanceFiles]::DaclEquivalent($originalAcl.GetSecurityDescriptorBinaryForm(),$backup.GetAccessControl().GetSecurityDescriptorBinaryForm())) { throw 'BackupAclNotVerified' }
+                $stage='BackupWrite'
                 $backup.Write($before,0,$before.Length); $backup.Flush($true)
+                $stage='BackupTimes'
                 [MaintenanceFiles]::CopyTimes($destination,$backup)
+                $stage='BackupVerify'
                 if ([MaintenanceFiles]::Hash([MaintenanceFiles]::Read($backup,4096)) -ine $beforeHash -or
-                    $backup.GetAccessControl().GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access) -cne $aclText) { throw 'BackupNotVerified' }
+                    -not [MaintenanceFiles]::DaclEquivalent($originalAcl.GetSecurityDescriptorBinaryForm(),$backup.GetAccessControl().GetSecurityDescriptorBinaryForm())) { throw 'BackupNotVerified' }
                 $result.BackupState='OriginalVerified'; $result.OutcomeUncertain=$false
                 if (Test-Path -LiteralPath (Join-Path $policy.ApplicationRoot 'application.active')) { throw 'ApplicationBecameActive' }
                 $stage='Replacement'; $result.OutcomeUncertain=$true; $result.DestinationState='Unknown'
                 $destination.Position=0; $destination.Write($approved,0,$approved.Length); $destination.SetLength($approved.Length); $destination.Flush($true)
                 $stage='Verification'
                 if ([MaintenanceFiles]::Hash([MaintenanceFiles]::Read($destination,4096)) -ine $policy.SourceSha256 -or
-                    $destination.GetAccessControl().GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access) -cne $aclText) { throw 'ReplacementNotVerified' }
+                    -not [MaintenanceFiles]::DaclEquivalent($originalAcl.GetSecurityDescriptorBinaryForm(),$destination.GetAccessControl().GetSecurityDescriptorBinaryForm())) { throw 'ReplacementNotVerified' }
                 $result.DestinationState='ApprovedVerified'; $result.OutcomeUncertain=$false
                 $result.WrittenBytes=$approved.Length; $result.Status='Changed'; $result.Reason='ApprovedConfigurationRestored'
             }

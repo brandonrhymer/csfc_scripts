@@ -126,8 +126,15 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion -lt [version]'5.1') { throw 'Windows PowerShell 5.1 is required.' }
-          & (Join-Path './mecm/tests' $env:TEST_SCRIPT) *>&1 | Tee-Object -FilePath mecm-test.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Match Windows PowerShell 5.1 Tee-Object's UTF-16 encoding.
+          Set-Content -LiteralPath mecm-test.log -Value ('Suite: ' + $env:TEST_SCRIPT) -Encoding Unicode
+          try {
+            & (Join-Path './mecm/tests' $env:TEST_SCRIPT) *>&1 | Tee-Object -FilePath mecm-test.log -Append
+            if ($LASTEXITCODE -ne 0) { throw "Suite exited with code $LASTEXITCODE" }
+          } catch {
+            $_ | Out-String | Tee-Object -FilePath mecm-test.log -Append
+            throw
+          }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:

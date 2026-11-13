@@ -90,3 +90,4 @@ try {
     Assert-True ($r.Exit -eq 1 -and $r.Result.Reason -eq 'WorkerTimeout' -and $r.Result.OutcomeUncertain -and $watch.Elapsed.TotalSeconds -lt 12) ('Timeout failed: '+$r.Raw)
     Write-Output ('PASS staging-cleanup: '+$script:Passes+' assertions; real Windows filesystem fixtures')
 } finally { Remove-Fixture }
+exit 0

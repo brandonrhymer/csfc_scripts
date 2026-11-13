@@ -19,7 +19,74 @@ function New-ConfigCase([string]$Name) {
     })
     return $case
 }
+function Get-DescriptorBytes([string]$Sddl) {
+    $descriptor=New-Object Security.AccessControl.RawSecurityDescriptor($Sddl)
+    $bytes=New-Object byte[] $descriptor.BinaryLength; $descriptor.GetBinaryForm($bytes,0)
+    return ,$bytes
+}
+function Write-FixtureAclDiagnostic($Case,$Result) {
+    # Diagnostics only for this suite's synthetic paths; never part of the
+    # operator product. Print no paths, account SIDs, source content or raw SDDL.
+    $diagnostic=[ordered]@{ Result=$Result.Raw }
+    foreach($role in @('Destination','Backup')) {
+        $path=[IO.Path]::GetFullPath([string]$Case.Policy.($role+'Path'))
+        if(-not $path.StartsWith($script:Fixture+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe diagnostic path' }
+        $exists=Test-Path -LiteralPath $path
+        $state=[ordered]@{ Exists=$exists }
+        if($exists) {
+            $acl=Get-Acl -LiteralPath $path
+            $raw=New-Object Security.AccessControl.RawSecurityDescriptor($acl.GetSecurityDescriptorBinaryForm(),0)
+            $state.Length=(Get-Item -LiteralPath $path).Length
+            $state.HashMatchesOriginal=((Get-Hash $path) -eq $Case.Policy.DestinationBeforeSha256)
+            $state.Flags=[string]$raw.ControlFlags; $state.Canonical=$acl.AreAccessRulesCanonical
+            $state.AceCount=if($null -eq $raw.DiscretionaryAcl) { -1 } else { $raw.DiscretionaryAcl.Count }
+            if($null -ne $raw.DiscretionaryAcl) {
+                $state.AcesTruncated=($raw.DiscretionaryAcl.Count -gt 32)
+                $state.Aces=@($raw.DiscretionaryAcl | Select-Object -First 32 | ForEach-Object {
+                    $mask=if($_ -is [Security.AccessControl.KnownAce]) { $_.AccessMask } else { $null }
+                    @{ Type=[string]$_.AceType; Flags=[string]$_.AceFlags; Mask=$mask }
+                })
+            }
+        }
+        $diagnostic[$role]=$state
+    }
+    Write-Host ('Synthetic ACL diagnostic: '+($diagnostic | ConvertTo-Json -Depth 6 -Compress))
+}
 try {
+    # Exercise the exact production comparer, including semantics that arbitrary
+    # sorting would erase. Loading the C# helper itself performs no file I/O.
+    $tokens=$null; $errors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseFile($source,[ref]$tokens,[ref]$errors)
+    Assert-True ($errors.Count -eq 0) 'Production source does not parse'
+    $native=$ast.Find({ param($node) $node -is [Management.Automation.Language.StringConstantExpressionAst] -and $node.Value.Contains('public static class MaintenanceFiles') },$true)
+    Add-Type -TypeDefinition $native.Value
+    $ordered='D:P(A;;FR;;;WD)(A;;FW;;;BU)'
+    $reordered='D:P(A;;FW;;;BU)(A;;FR;;;WD)'
+    Assert-True ([MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes $ordered),(Get-DescriptorBytes $reordered))) 'Ordinary adjacent Allow reorder rejected'
+    Assert-True ([MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes 'D:P(D;;FR;;;WD)(D;;FW;;;BU)(A;;FA;;;SY)'),(Get-DescriptorBytes 'D:P(D;;FW;;;BU)(D;;FR;;;WD)(A;;FA;;;SY)'))) 'Ordinary adjacent Deny reorder rejected'
+    foreach($pair in @(
+        @('D:P(A;;FR;;;WD)(D;;FR;;;BU)','D:P(D;;FR;;;BU)(A;;FR;;;WD)'),
+        @('D:P(A;ID;FR;;;WD)(A;;FW;;;BU)','D:P(A;;FW;;;BU)(A;ID;FR;;;WD)'),
+        @('D:P(A;;FR;;;WD)','D:(A;;FR;;;WD)'),
+        @('D:P(A;;FR;;;WD)','D:P(A;;FW;;;WD)'),
+        @('D:P(A;;FR;;;WD)','D:P(A;;FR;;;BU)'),
+        @('D:P(A;;FR;;;WD)(A;;FR;;;WD)','D:P(A;;FR;;;WD)'),
+        @('D:NO_ACCESS_CONTROL','D:')
+    )) { Assert-True (-not [MaintenanceFiles]::DaclEquivalent((Get-DescriptorBytes $pair[0]),(Get-DescriptorBytes $pair[1]))) 'Security-significant DACL difference accepted' }
+    # A callback ACE is a positional barrier even beside ordinary Allow ACEs.
+    $sid=New-Object Security.Principal.SecurityIdentifier('S-1-1-0')
+    $ordinary=New-Object Security.AccessControl.CommonAce([Security.AccessControl.AceFlags]::None,[Security.AccessControl.AceQualifier]::AccessAllowed,1,$sid,$false,$null)
+    $callback=New-Object Security.AccessControl.CommonAce([Security.AccessControl.AceFlags]::None,[Security.AccessControl.AceQualifier]::AccessAllowed,1,$sid,$true,$null)
+    $callbackDescriptors=@()
+    foreach($reverse in @($false,$true)) {
+        $rawAcl=New-Object Security.AccessControl.RawAcl(2,2)
+        if($reverse) { $rawAcl.InsertAce(0,$callback); $rawAcl.InsertAce(1,$ordinary) }
+        else { $rawAcl.InsertAce(0,$ordinary); $rawAcl.InsertAce(1,$callback) }
+        $descriptor=New-Object Security.AccessControl.RawSecurityDescriptor([Security.AccessControl.ControlFlags]::DiscretionaryAclPresent,$null,$null,$null,$rawAcl)
+        $bytes=New-Object byte[] $descriptor.BinaryLength; $descriptor.GetBinaryForm($bytes,0)
+        $callbackDescriptors+=,$bytes
+    }
+    Assert-True (-not [MaintenanceFiles]::DaclEquivalent($callbackDescriptors[0],$callbackDescriptors[1])) 'Callback ACE ordering ignored'
     $c=New-ConfigCase 'normal'; $p=$c.Policy
     $beforeHash=Get-Hash $p.DestinationPath
     $acl=(Get-Acl -LiteralPath $p.DestinationPath).Sddl
@@ -27,6 +94,7 @@ try {
     $r=Invoke-Product $source $c $p
     Assert-True ($r.Exit -eq 0 -and $r.Result.Reason -eq 'PreviewOnly' -and (Get-Hash $p.DestinationPath) -eq $beforeHash -and -not (Test-Path -LiteralPath $p.BackupPath)) ('Preview failed: '+$r.Raw)
     $r=Invoke-Product $source $c $p 'Apply'
+    if($r.Exit -ne 0) { Write-FixtureAclDiagnostic $c $r }
     Assert-True ($r.Exit -eq 0 -and $r.Result.Status -eq 'Changed' -and $r.Result.DestinationState -eq 'ApprovedVerified' -and $r.Result.BackupState -eq 'OriginalVerified') ('Restore failed: '+$r.Raw)
     Assert-True ((Get-Hash $p.DestinationPath) -eq $p.SourceSha256 -and (Get-Hash $p.BackupPath) -eq $beforeHash) 'Restore/backup bytes mismatch'
     Assert-True ((Get-Acl -LiteralPath $p.DestinationPath).Sddl -eq $acl -and (Get-Item -LiteralPath $p.DestinationPath).CreationTimeUtc -eq $created) 'Destination ACL/creation metadata changed'
@@ -35,6 +103,27 @@ try {
     $defaultOutput=& powershell.exe -NoProfile -NonInteractive -File $source -PolicyPath $c.PolicyPath -PolicySha256 (Get-Hash $c.PolicyPath)
     $defaultResult=($defaultOutput -join "`n") | ConvertFrom-Json
     Assert-True ($LASTEXITCODE -eq 0 -and $defaultResult.Mode -eq 'Preview') 'Default mode was not Preview'
+    $c=New-ConfigCase 'protected-dacl'; $p=$c.Policy
+    $protectedAcl=Get-Acl -LiteralPath $p.DestinationPath
+    $protectedAcl.SetAccessRuleProtection($true,$true)
+    Set-Acl -LiteralPath $p.DestinationPath -AclObject $protectedAcl
+    $expectedDacl=(Get-Acl -LiteralPath $p.DestinationPath).GetSecurityDescriptorBinaryForm()
+    $r=Invoke-Product $source $c $p 'Apply'
+    if($r.Exit -ne 0) { Write-FixtureAclDiagnostic $c $r }
+    Assert-True ($r.Exit -eq 0 -and $r.Result.BackupState -eq 'OriginalVerified' -and (Get-Hash $p.BackupPath) -eq $p.DestinationBeforeSha256 -and (Get-Hash $p.DestinationPath) -eq $p.SourceSha256) ('Protected DACL restore failed: '+$r.Raw)
+    Assert-True ((Get-Acl -LiteralPath $p.BackupPath).AreAccessRulesProtected -and [MaintenanceFiles]::DaclEquivalent($expectedDacl,(Get-Acl -LiteralPath $p.BackupPath).GetSecurityDescriptorBinaryForm())) 'Protected DACL semantics were not preserved'
+    $c=New-ConfigCase 'inherited-permission-drift'; $p=$c.Policy
+    $backupParent=Split-Path -Parent $p.BackupPath
+    $parentAcl=Get-Acl -LiteralPath $backupParent
+    # A verified-absent synthetic SID makes this a new permission on every host;
+    # BUILTIN Users Read could already exist in a hosted runner's inherited ACL.
+    $syntheticSid=New-Object Security.Principal.SecurityIdentifier('S-1-5-21-123456789-234567890-345678901-4242')
+    $destinationRules=(Get-Acl -LiteralPath $p.DestinationPath).GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])
+    Assert-True (@($destinationRules | Where-Object { $_.IdentityReference -eq $syntheticSid }).Count -eq 0) 'Synthetic drift SID unexpectedly present'
+    $extra=New-Object Security.AccessControl.FileSystemAccessRule($syntheticSid,[Security.AccessControl.FileSystemRights]::Read,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit),[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Allow)
+    $parentAcl.AddAccessRule($extra); Set-Acl -LiteralPath $backupParent -AclObject $parentAcl
+    $r=Invoke-Product $source $c $p 'Apply'
+    Assert-True ($r.Exit -eq 1 -and $r.Result.Reason -eq 'BackupAclFailed' -and $r.Result.BackupState -eq 'Unverified' -and $r.Result.DestinationState -eq 'OriginalVerified' -and (Get-Hash $p.DestinationPath) -eq $p.DestinationBeforeSha256 -and (Get-Item -LiteralPath $p.BackupPath).Length -eq 0) ('Inherited permission drift accepted: '+$r.Raw)
     foreach($modeFault in @('missing','null')) {
         $c=New-ConfigCase ('mode-'+$modeFault); $p=$c.Policy
         $injection=if($modeFault -eq 'missing') { '$s.PSObject.Properties.Remove("Mode"); & $w $s' } else { '$s.Mode=$null; & $w $s' }
@@ -100,3 +189,4 @@ try {
     Assert-True ((Get-Hash $p.BackupPath) -eq $p.DestinationBeforeSha256) 'Timeout lost backup'
     Write-Output ('PASS config-restore: '+$script:Passes+' assertions; real Windows filesystem fixtures')
 } finally { Remove-Fixture }
+exit 0

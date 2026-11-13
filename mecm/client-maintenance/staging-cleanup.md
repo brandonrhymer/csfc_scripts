@@ -46,8 +46,8 @@ least three components below the volume root. UNC/device/relative paths, alterna
 streams, short-name aliases, substituted-drive aliases, reparse points and system
 or protected directory names are rejected. Windows, Program Files, MECM cache,
 logs, evidence and package roots are excluded. Directory handles prevent ancestor
-renames while work proceeds. Files must have one hardlink and ordinary supported
-attributes; open/locked, read-only, hidden/system, encrypted, sparse or compressed
+renames while work proceeds. Files are checked for one hardlink at open and must
+have ordinary supported attributes; open/locked, read-only, hidden/system, encrypted, sparse or compressed
 candidate files fail preflight.
 
 `FileNamePatterns` has 1-8 distinct patterns of the form `prefix-*.disposable`;
@@ -72,6 +72,8 @@ check alone cannot establish inactivity. `ActivityMarkers` lists 1-16 distinct
 `.exe`. Any marker or matching process blocks work. Activity is checked before
 inspection and before every deletion. No process is stopped. The application and
 trusted administrators must not change the directory during the operation.
+Exclusive handles do not freeze link counts or ACL metadata; trusted writers
+must not change either during maintenance.
 
 ## Results, failures and recovery
 

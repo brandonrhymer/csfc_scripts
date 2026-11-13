@@ -71,9 +71,11 @@ are prerequisites; absent files/processes alone cannot prove inactivity.
 
 Canonical drive-letter paths on fixed NTFS are required. UNC/device/relative and
 alternate-stream paths, aliases, protected/system roots, reparse ancestors/files,
-hardlinks, unsupported attributes and overlapping roles are rejected. The script
-holds every ancestor against rename and each participating file against concurrent
-access. Backup creation uses CREATE_NEW, so collisions are never overwritten.
+multiple hardlinks at open, unsupported attributes and overlapping roles are
+rejected. The script holds every ancestor against rename and each participating
+file against ordinary competing read/write/delete opens. Exclusive handles do
+not freeze link counts or ACL metadata; trusted writers must not change either
+during maintenance. Backup creation uses CREATE_NEW, so collisions are never overwritten.
 
 ## Changes and recovery
 
