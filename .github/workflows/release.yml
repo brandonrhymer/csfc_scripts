@@ -1,0 +1,100 @@
+name: Prepare product release
+
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: Product ID from the catalog, or bundle
+        required: true
+        default: bundle
+        type: string
+      bundle_products:
+        description: Optional comma-separated product IDs for a selected bundle; blank includes all
+        required: false
+        type: string
+      bundle_version:
+        description: Optional bundle version (major.minor.patch); individual versions come from the catalog
+        required: false
+        type: string
+  schedule:
+    - cron: '0 14 1 1,4,7,10 *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-release-preparation
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Select release identity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      product: ${{ steps.plan.outputs.product }}
+      bundle_products: ${{ steps.plan.outputs.bundle_products }}
+      bundle_version: ${{ steps.plan.outputs.bundle_version }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - name: Require main
+        env:
+          SELECTED_REF: ${{ github.ref }}
+        run: test "$SELECTED_REF" = refs/heads/main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Select independent product or quarterly bundle
+        id: plan
+        env:
+          RELEASE_PRODUCT: ${{ inputs.product }}
+          BUNDLE_PRODUCTS: ${{ inputs.bundle_products }}
+          BUNDLE_VERSION: ${{ inputs.bundle_version }}
+        run: bun tools/release/release.ts plan
+
+  validate:
+    name: Validate selected revision
+    needs: plan
+    uses: ./.github/workflows/ci.yml
+    with:
+      product: ${{ needs.plan.outputs.product }}
+      bundle_products: ${{ needs.plan.outputs.bundle_products }}
+      bundle_version: ${{ needs.plan.outputs.bundle_version }}
+
+  draft:
+    name: Prepare verified release draft
+    needs: [plan, validate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: product-packages
+          path: dist
+          digest-mismatch: error
+      - name: Verify downloaded package contents
+        run: bun tools/release/package.ts --verify dist
+      - name: Attest package provenance
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*.zip
+      - name: Create draft and verify uploaded assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+          ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: bun tools/release/release.ts draft dist
