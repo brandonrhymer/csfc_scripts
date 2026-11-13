@@ -33,7 +33,7 @@ development; an operational pilot remains separate. Its job names are:
 | --- | --- | --- |
 | Linux offline checks | Ubuntu 24.04, Python 3, Bash and PowerShell 7.4+ | Discovers all `tests/test_*.py` suites; sanitizer regressions including Unix permissions |
 | Windows offline checks | Windows Server 2022; Windows PowerShell 5.1 and PowerShell 7.4+ | Parser/Defender helpers, MECM mocks, sanitizer regressions |
-| KRBTGT offline release gates | Windows Server 2022; Windows PowerShell 5.1 | Committed hashes, parser, analyzer and mocked Pester suite |
+| KRBTGT offline release gates | Windows Server 2022; Windows PowerShell 5.1 | Committed hashes, parser, analyzer, mocked Pester suite and isolated receipt-directory ACL policy regressions |
 | MECM client checks (product ID) | Eleven isolated Windows Server 2022 jobs; Windows PowerShell 5.1 | Per-product synthetic provider/control-flow tests, owned-process timeouts and disposable filesystem fixtures |
 | Product package checks | Windows Server 2022; Bun 1.4.2 | Packaging tests, product version checks, committed-source ZIPs and bundle, archive verification and extraction checks |
 
