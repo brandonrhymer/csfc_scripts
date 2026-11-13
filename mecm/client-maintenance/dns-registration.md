@@ -86,4 +86,3 @@ Run **mecm/tests/check-dns-registration.ps1** in its own PowerShell process. It 
 all native calls in real script control-flow tests, then exercises the production
 process helper with synthetic owned PowerShell children for deadline, exit-code
 and output-limit checks. No operational policy, DNS or time provider is executed.
-

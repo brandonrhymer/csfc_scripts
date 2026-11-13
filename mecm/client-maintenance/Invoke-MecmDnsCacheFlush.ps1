@@ -196,4 +196,3 @@ finally {
     if ($result.Status -eq 'Failed') { exit 1 }
     exit 0
 }
-

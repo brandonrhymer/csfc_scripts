@@ -233,4 +233,3 @@ finally {
     if (-not $resolved.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName($resolved) -notlike 'csfc-os-request-*') { throw 'Unsafe fixture cleanup path.' }
     Remove-Item -LiteralPath $resolved -Recurse -Force
 }
-

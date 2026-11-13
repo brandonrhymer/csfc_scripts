@@ -64,4 +64,3 @@ Run **mecm/tests/check-computer-policy-refresh.ps1** in its own PowerShell proce
 all native calls in real script control-flow tests, then exercises the production
 process helper with synthetic owned PowerShell children for deadline, exit-code
 and output-limit checks. No operational policy, DNS or time provider is executed.
-

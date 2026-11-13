@@ -80,4 +80,3 @@ Run **mecm/tests/check-time-sync.ps1** in its own PowerShell process. It substit
 all native calls in real script control-flow tests, then exercises the production
 process helper with synthetic owned PowerShell children for deadline, exit-code
 and output-limit checks. No operational policy, DNS or time provider is executed.
-
