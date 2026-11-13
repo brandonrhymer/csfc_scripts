@@ -210,18 +210,22 @@ The server SERVER02 responded normally.
 }
 
 Test-Case 'secret fields authorization and private key blocks are removed' {
-    $f = New-Fixture @'
-password=synthetic-password
-api_key: synthetic-api-key
-Authorization: Bearer synthetic-bearer-token
------BEGIN PRIVATE KEY-----
-U3ludGhldGljS2V5RGF0YQ==
------END PRIVATE KEY-----
-visible=ordinary
-'@
+    # Generate the PEM-shaped fixture from explicitly synthetic data at runtime.
+    $boundary = '-' * 5
+    $keyType = 'PRIVATE KEY'
+    $syntheticKeyData = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('SyntheticKeyData'))
+    $f = New-Fixture (@(
+        'password=synthetic-password'
+        'api_key: synthetic-api-key'
+        'Authorization: Bearer synthetic-bearer-token'
+        ('{0}BEGIN {1}{0}' -f $boundary, $keyType)
+        $syntheticKeyData
+        ('{0}END {1}{0}' -f $boundary, $keyType)
+        'visible=ordinary'
+    ) -join "`n")
     Assert-Success (Invoke-Obfuscator @{ Path = $f.Input; OutputPath = $f.Output })
     $text = [System.IO.File]::ReadAllText($f.Output)
-    Assert-Removed $text @('synthetic-password', 'synthetic-api-key', 'synthetic-bearer-token', 'U3ludGhldGljS2V5RGF0YQ==')
+    Assert-Removed $text @('synthetic-password', 'synthetic-api-key', 'synthetic-bearer-token', $syntheticKeyData)
     Assert-Contains $text 'ordinary'
 }
 

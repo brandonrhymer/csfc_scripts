@@ -318,7 +318,7 @@ describe("untrusted artifact verification", () => {
   });
 });
 
-test("all 16 real entrypoints package; KRBTGT bytes and original hashes survive independent extraction", () => {
+test("all 27 real entrypoints package; KRBTGT bytes and original hashes survive independent extraction", () => {
   const root = temporary(), repo = path.join(root, "repo"), output = path.join(root, "release"), extracted = path.join(root, "extracted");
   mkdirSync(repo); git(repo, ["init", "-q"]); git(repo, ["config", "core.autocrlf", "false"]);
   const records = git(sourceRepo, ["ls-tree", "-r", "-z", "HEAD"]).toString().split("\0").filter(Boolean);
@@ -330,7 +330,7 @@ test("all 16 real entrypoints package; KRBTGT bytes and original hashes survive 
   // The production builder still reads both catalog and all payloads only from Git.
   write(repo, "tools/release/catalog.json", readFileSync(path.join(import.meta.dir, "catalog.json"))); commit(repo);
   const result = buildRelease({ repo, output, product: "all" });
-  expect(result.products).toHaveLength(16); expect(result.assets).toHaveLength(17);
+  expect(result.products).toHaveLength(27); expect(result.assets).toHaveLength(28);
   for (const product of result.products) {
     const bytes = readFileSync(path.join(output, `${product.id}-${product.version}.zip`));
     const manifest = verifyProductArchive(bytes, product);
