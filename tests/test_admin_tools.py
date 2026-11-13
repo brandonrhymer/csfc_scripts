@@ -8,6 +8,7 @@ import pathlib
 import re
 import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -21,7 +22,8 @@ def load(relative):
     compile(tree, str(path), 'exec')
     spec = importlib.util.spec_from_file_location(path.stem, path)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # Reviewed modules have guarded main entry points.
+    with mock.patch.object(sys, 'path', [str(path.parent)] + sys.path):
+        spec.loader.exec_module(module)  # Reviewed modules have guarded main entry points.
     return module
 
 
@@ -31,6 +33,7 @@ class AdminToolsTests(unittest.TestCase):
         cls.clam = load('linux/clamav/clamav_rhel9_discovery.py')
         cls.discovery = load('linux/local-accounts/local_admin_discovery.py')
         cls.remediation = load('linux/local-accounts/local_admin_remediation.py')
+        cls.policy = cls.discovery.load_policy(ROOT / 'linux/local-accounts/policy.example.json')
 
     def test_embedded_bash_syntax(self):
         for module in (self.clam, self.discovery, self.remediation):
@@ -70,9 +73,11 @@ class AdminToolsTests(unittest.TestCase):
         result = self.discovery.assess_host('host1.example.invalid', 'example_operator', {
             'transport_status': 'SUCCESS', 'data': {
                 'os_release': 'ID=rhel\nVERSION_ID=9',
-                'uid_20000_owner': 'other_example:x:20000:20000:Example:/home/example:/bin/bash',
+                'target_uid_owner': 'other_example:x:20000:20000:Example:/home/example:/bin/bash',
+                'collection_complete': 'COMPLETE', 'ownership_scan_status': 'NOT_APPLICABLE',
+                'account_owned_file_count': 'NOT_APPLICABLE',
             },
-        })
+        }, self.policy)
         self.assertEqual(result['overall_status'], 'UID_GID_CONFLICT')
 
     def test_clamav_missing(self):
@@ -139,7 +144,7 @@ class AdminToolsTests(unittest.TestCase):
              mock.patch.object(module.select, 'select', return_value=([100], [], [])), \
              mock.patch.object(module.os, 'read', side_effect=[self.records({'result': 'REMEDIATED'}).encode(), b'']), \
              mock.patch.object(module.os, 'close'):
-            result = module.run_remote('host1.example.invalid', 'example_operator', '', '', True, False)
+            result = module.run_remote('host1.example.invalid', 'example_operator', '', '', True, False, self.policy)
         self.assertEqual(result['status'], 'UNVERIFIED')
         process.wait.assert_called_once()
 
@@ -148,7 +153,8 @@ class AdminToolsTests(unittest.TestCase):
         for status, expected_exit in (('UNKNOWN', 1), ('UNVERIFIED', 1), ('TIMEOUT', 1),
                                       ('ERROR', 1), ('DRY_RUN_READY', 1), ('REMEDIATED', 0)):
             with self.subTest(status=status), \
-                 mock.patch.object(module.sys, 'argv', ['script', '--inventory', 'private.csv', '--apply']), \
+                 mock.patch.object(module.sys, 'argv', ['script', '--inventory', 'private.csv', '--policy', 'private.json', '--apply']), \
+                 mock.patch.object(module, 'load_policy', return_value=self.policy), \
                  mock.patch.object(module.os, 'geteuid', return_value=0), \
                  mock.patch.object(module, 'read_inventory', return_value=[('host1.example.invalid', 'example_operator')]), \
                  mock.patch('builtins.input', return_value='APPLY'), \

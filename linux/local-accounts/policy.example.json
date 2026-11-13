@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "account": "example_admin",
+  "group": "example_admin",
+  "uid": 20000,
+  "gid": 20000,
+  "home": "/home/example_admin",
+  "home_mode": "0700",
+  "shell": "/bin/bash",
+  "comment": "Local Administrative Account",
+  "privileged_group": "wheel",
+  "password_max_days": 60,
+  "password_min_days": 1,
+  "password_warn_days": 14,
+  "password_inactive_days": 60,
+  "faillock_deny": 3,
+  "faillock_unlock_time_seconds": 900
+}
