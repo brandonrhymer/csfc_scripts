@@ -15,6 +15,8 @@ Earlier limited checks and source review do not establish deployment readiness.
 - [MECM toolkit](mecm/README.md): Configuration Manager preparation, installation, and operations.
 - [Validation guide](docs/validation.md): check coverage, known limits, and required lab validation.
 - [Text sanitization](obfuscation/README.md): redact or consistently substitute sensitive values in a text file.
+- [Contributing](CONTRIBUTING.md): bounded changes, review, and validation evidence.
+- [GitHub workflow](docs/github-workflow.md): issues, project tracking, automated checks, and agent profiles.
 
 Each tool's runbook explains prerequisites, inputs, effects, outputs, and known
 limits. A script being present here is not approval to execute it on any system.

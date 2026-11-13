@@ -17,6 +17,7 @@ or an earlier syntax check as approval to use a script on an operational system.
 | Stage an offline Defender update | [Defender runbook](../windows/defender/README.md) | Copies a supplied package, executes it on approved targets, and records evidence. |
 | Download a Nessus plugin archive | [Nessus runbook](../windows/nessus/README.md) | Downloads a file only. It does not import or activate plugins. |
 | Install or remove a local Splunk Forwarder | [Splunk runbook](../windows/splunk/README.md) | Runs one local MSI operation. It does not deploy to a remote inventory. |
+| Perform attended routine KRBTGT rotation | [KRBTGT runbook](../windows/reset-krbtgt/README.md) | Supports the documented two-DC profile with separate Preflight and state-changing Test phases; review the known unresolved Test-flow report. |
 | Prepare Configuration Manager work | [MECM toolkit](../mecm/README.md) | Follow that toolkit's separate requirements and runbooks. |
 | Sanitize text before sharing | [Text-sanitization runbook](../obfuscation/README.md) | Describes the separate PowerShell text-sanitization utility and its limits. |
 

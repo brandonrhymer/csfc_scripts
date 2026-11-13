@@ -1,0 +1,84 @@
+name: Offline validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux offline checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Discover Python and embedded Bash checks
+        run: python3 -B -m unittest discover -s tests -p 'test_*.py'
+      - name: Text sanitizer and Unix artifact permissions
+        shell: pwsh
+        run: |
+          if ($PSVersionTable.PSVersion -lt [version]'7.4') { throw 'PowerShell 7.4 or later is required.' }
+          ./obfuscation/tests/obfuscatefile.Tests.ps1
+
+  windows:
+    name: Windows offline checks
+    runs-on: windows-2022
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Windows PowerShell 5.1 parser and Defender helpers
+        run: |
+          if ($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion -lt [version]'5.1') { throw 'Windows PowerShell 5.1 is required.' }
+          ./tests/check-admin-tools.ps1
+      # Each step starts a fresh process so the MECM mocks cannot leak between suites.
+      - name: MECM syntax
+        run: ./mecm/tests/check-syntax.ps1
+      - name: MECM collection control flow
+        run: ./mecm/tests/check-collections.ps1
+      - name: MECM application duplicate guard
+        run: ./mecm/tests/check-application-duplicates.ps1
+      - name: Text sanitizer synthetic regressions
+        shell: pwsh
+        run: |
+          if ($PSVersionTable.PSVersion -lt [version]'7.4') { throw 'PowerShell 7.4 or later is required.' }
+          ./obfuscation/tests/obfuscatefile.Tests.ps1
+
+  krbtgt:
+    name: KRBTGT offline release gates
+    runs-on: windows-2022
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Prepare versioned development dependencies
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue)) {
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force
+          }
+          foreach ($dependency in @(@{ Name = 'Pester'; Version = '3.4.0' }, @{ Name = 'PSScriptAnalyzer'; Version = '1.25.0' })) {
+            if (-not (Get-Module -ListAvailable -Name $dependency.Name | Where-Object { $_.Version -eq [version]$dependency.Version })) {
+              Install-Module -Name $dependency.Name -RequiredVersion $dependency.Version -Repository PSGallery -Scope CurrentUser -Force -AllowClobber
+            }
+          }
+      - name: Verify committed hashes, syntax, analyzer and mocked behavior
+        run: ./windows/reset-krbtgt/tools/Invoke-ReleaseVerification.ps1
