@@ -118,6 +118,9 @@ function New-Fixture {
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($fixture | ConvertTo-Json -Compress)))
     $header = [Environment]::NewLine + '$fixture = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''' + $encoded + ''')) | ConvertFrom-Json' + [Environment]::NewLine + $providers.ToString() + [Environment]::NewLine
     $copy = $source.Insert($insertion, $header)
+    # Only fixture copies expose synthetic diagnostics; operational output stays compact.
+    $copy = $copy.Replace("`$reason = 'Task provider or task metadata failed; no further action was attempted.'", "Write-Trace (`$_ | Out-String); `$reason = 'Task provider or task metadata failed; no further action was attempted.'")
+    $copy = $copy.Replace("`$result.Status = 'Failed'", "Write-Warning (`$_ | Out-String); if (`$null -ne `$stderr -and `$stderr.IsCompleted) { Write-Warning `$stderr.Result }; `$result.Status = 'Failed'")
     if ($Scenario -eq 'BlockStdin') {
         # Exercise the real parent deadline when its child never consumes input.
         $copy = $copy.Replace('$entry = ''$source = [Console]::In.ReadToEnd(); & ([scriptblock]::Create($source))''', '$entry = ''Start-Sleep -Seconds 30''')
@@ -157,7 +160,7 @@ function Invoke-Case {
 try {
     $defaultFixture = New-Fixture 'Overdue'
     $defaultOutput = @(& $defaultFixture.Path -TimeoutSeconds 15)
-    Assert-True ($LASTEXITCODE -eq 0 -and (($defaultOutput[0] | ConvertFrom-Json).Mode -eq 'Preview')) 'Omitted Mode was not Preview.'
+    Assert-True ($LASTEXITCODE -eq 0 -and (($defaultOutput[0] | ConvertFrom-Json).Mode -eq 'Preview')) ("Omitted Mode was not Preview. Exit={0}; result={1}; trace={2}" -f $LASTEXITCODE, ($defaultOutput -join ' '), ([IO.File]::ReadAllText($defaultFixture.TracePath)))
     Assert-True (@([IO.File]::ReadAllLines($defaultFixture.TracePath) | Where-Object { $_ -in @('enable', 'start') }).Count -eq 0) 'Default mode changed a task.'
     $cases++; Write-Host 'PASS: CcmEval defaults to preview'
     $preview = Invoke-Case 'Overdue' 'Skipped' 'Preview'
