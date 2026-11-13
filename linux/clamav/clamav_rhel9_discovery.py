@@ -391,8 +391,8 @@ def ssh_collect(host, username, password):
 
             ready, _, _ = select.select([master_fd], [], [], min(1.0, remaining))
             if not ready:
-                if process.poll() is not None:
-                    break
+                # The child can write and exit after this readiness snapshot.
+                # Keep draining until terminal EOF or the total deadline.
                 continue
 
             try:

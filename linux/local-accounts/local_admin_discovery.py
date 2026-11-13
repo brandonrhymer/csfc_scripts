@@ -285,8 +285,6 @@ def collect_host(host, username, password, policy):
 
             readable, _, _ = select.select([master_fd], [], [], min(1, remaining))
             if not readable:
-                if process.poll() is not None:
-                    break
                 continue
 
             try:

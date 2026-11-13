@@ -454,8 +454,6 @@ def run_remote(host, username, current_password, new_password, apply_mode, manag
 
             readable, _, _ = select.select([master], [], [], min(1, remaining))
             if not readable:
-                if proc.poll() is not None:
-                    break
                 continue
 
             try:

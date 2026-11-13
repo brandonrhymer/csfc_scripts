@@ -90,6 +90,7 @@ From the repository root, in a fresh Windows PowerShell 5.1 process:
 
 ```powershell
 powershell.exe -NoProfile -File tests/check-krbtgt-evidence-guards.ps1
+powershell.exe -NoProfile -File tests/check-krbtgt-failure-evidence.ps1
 ```
 
 The suite extracts the actual receipt guard from source without importing the
@@ -99,6 +100,15 @@ in-memory ACLs: both allowed owners, extra read/full-control Allow entries,
 inheritance, an unexpected owner, missing or insufficient required permissions,
 an absent directory and an ACL-read error. It also checks that the input ACL is
 unchanged. It contacts no directory and changes no real ACL or receipt.
+
+The second suite exercises the actual failure-evidence writer with fake receipt
+and event adapters. It checks that the original operation error is passed to
+both evidence channels, an event is still attempted after a receipt-save failure,
+and a receipt failure remains the outward evidence error when both channels fail.
+It also covers unavailable event registration and registration-check failures.
+All helper calls are isolated; no operational module, receipt file or event log
+is used. These tests preserve the distinction between the original operation
+failure and a later failure while recording it.
 
 Use the successful GitHub Actions run for the exact reviewed revision as the
 integration evidence. These checks establish only the tested policy/control

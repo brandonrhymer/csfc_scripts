@@ -97,6 +97,8 @@ jobs:
         run: ./windows/reset-krbtgt/tools/Invoke-ReleaseVerification.ps1
       - name: KRBTGT receipt-directory policy regressions
         run: ./tests/check-krbtgt-evidence-guards.ps1
+      - name: KRBTGT failure-evidence regressions
+        run: ./tests/check-krbtgt-failure-evidence.ps1
 
   mecm_clients:
     name: MECM client checks (${{ matrix.product }})

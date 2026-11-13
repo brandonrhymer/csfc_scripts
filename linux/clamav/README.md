@@ -87,6 +87,8 @@ sanitized output** and must not be committed or pasted into a public issue.
 | `UNREACHABLE` / `INSUFFICIENT_PRIVILEGE` / `ERROR` | Collection could not be completed reliably. |
 
 A collection response needs its completion record and successful SSH exit.
+The controller drains buffered terminal output until EOF or the total deadline;
+local process exit alone does not mean the final records have been read.
 Partial structured output is retained with `collection_complete: false` and is
 not assessed as a completed collection. The raw remote completion record, if
 present inside `evidence`, does not override a failed SSH exit or total timeout.

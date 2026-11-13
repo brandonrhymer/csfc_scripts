@@ -62,6 +62,8 @@ are not implemented.
 Local root privileges are required for the current report locations. The account
 that launches the command must already have the approved host-key records.
 These utilities do not configure SSH, sudo, host-key trust, or remote access.
+Both utilities drain buffered terminal output until EOF or their existing total
+deadline; local process exit alone does not establish that final records were read.
 
 ## 1. Prepare the private inventory
 
