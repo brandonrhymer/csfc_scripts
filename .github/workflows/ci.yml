@@ -65,6 +65,10 @@ jobs:
         run: ./mecm/tests/check-application-duplicates.ps1
       - name: WSUS export path and failure guards
         run: ./mecm/tests/check-wsus-export.ps1
+      - name: MECM client cache safety and timeout checks
+        run: ./mecm/tests/check-cache-cleanup.ps1
+      - name: MECM overdue CcmEval safety and timeout checks
+        run: ./mecm/tests/check-ccmeval.ps1
       - name: Text sanitizer synthetic regressions
         shell: pwsh
         run: |

@@ -19,6 +19,7 @@ Hosted isolated checks and source review do not establish deployment readiness.
 - [Linux tools](linux/README.md): ClamAV discovery and illustrative local-account discovery/remediation.
 - [Windows tools](windows/README.md): Defender, Nessus download, Splunk Forwarder, and attended KRBTGT rotation.
 - [MECM toolkit](mecm/README.md): Configuration Manager preparation, installation, and operations.
+- [MECM client maintenance](mecm/client-maintenance/README.md): local candidates for selective cache cleanup and overdue CcmEval, pending an approved client pilot.
 - [Validation guide](docs/validation.md): check coverage, known limits, and required lab validation.
 - [Releases and downloads](docs/releases.md): independent products, selectable bundles, and maintainer release steps.
 - [Text sanitization](obfuscation/README.md): redact or consistently substitute sensitive values in a text file.

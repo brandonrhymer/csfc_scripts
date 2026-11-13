@@ -44,7 +44,7 @@ The workflow uses a read-only contents token, disables checkout credential
 persistence and pins actions to full commit SHAs. Dependabot proposes weekly
 GitHub Actions dependency updates; review those PRs before merging.
 
-On pull requests and `main`, **Product package checks** produces all 16 product
+On pull requests and `main`, **Product package checks** produces all 18 product
 ZIPs plus a bundle in the `product-packages` Actions artifact, retained for 14
 days. Packages include declared dependencies and runbooks. Download and inspect
 these candidates using the [release guide](releases.md#candidate-builds).

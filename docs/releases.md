@@ -89,7 +89,7 @@ if your transfer process requires verification without network access.
 ## Candidate builds
 
 Pull requests and pushes to `main` run **Offline validation**. Its **Product
-package checks** job builds all 16 candidate product ZIPs and a bundle from the
+package checks** job builds all 18 candidate product ZIPs and a bundle from the
 tested commit. The downloadable Actions artifact is named `product-packages`
 and is retained for 14 days. These are review candidates; the workflow does not
 publish a release or deploy a script.
