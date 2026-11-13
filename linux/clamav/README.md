@@ -82,10 +82,25 @@ sanitized output** and must not be committed or pasted into a public issue.
 | `PARTIAL` | Some configuration or supporting evidence was missing. |
 | `NOT_ASSESSED` | Operational checks did not establish an approved package/version compliance baseline. |
 | `UNAUTHORIZED_OR_UNSUPPORTED_OS` | The response did not identify as RHEL 9. |
+| `COLLECTION_TIMEOUT` | The total collection deadline expired; retained evidence is incomplete and remote completion is unknown. |
+| `INCOMPLETE` | Structured evidence arrived, but its completion record or successful SSH exit was missing. |
 | `UNREACHABLE` / `INSUFFICIENT_PRIVILEGE` / `ERROR` | Collection could not be completed reliably. |
 
 A collection response needs its completion record and successful SSH exit.
-Partial structured output is not accepted as a completed collection.
+Partial structured output is retained with `collection_complete: false` and is
+not assessed as a completed collection. The raw remote completion record, if
+present inside `evidence`, does not override a failed SSH exit or total timeout.
+
+For completed collections that reach scanner assessment, `evidence.scanner_results`
+distinguishes `SUCCESS`,
+`TIMEOUT` (scanner exit 124), `KILLED` (exit 137), `FAILED`, and `NOT_INSTALLED`.
+Unsupported operating systems or absent ClamAV installations can return before
+this field is added.
+A killed scanner may have exceeded the timeout grace period; that exit code alone
+does not prove the cause. A scanner timeout produces a `NONCOMPLIANT` discovery
+finding with its original scanner output retained, rather than `UNREACHABLE`.
+`collection_complete: true` means the collector returned successfully; it does
+not mean every scanner or operational check passed.
 
 Exit `2` indicates an input/report/preflight failure. Exit `1` means at least one
 target was not fully assessed by the script's current rules. In particular, this
@@ -105,9 +120,16 @@ certification, so a collected `NOT_ASSESSED` result is nonzero.
   configured socket or unwritable configured log path is a finding. Log access
   checks use the first configured `User` (or root); review multi-instance setups
   with different service users separately.
-- Remote collection has a 60-second controller deadline. A slow scanner or SSH
-  exchange can exceed it. No partial response is accepted as a completed result.
-- Read-only collection can retry once. Scanner checks may therefore run again.
+- SSH connection setup has a 60-second budget. Each of the two sequential scanner
+  checks has its own 60-second budget and a 5-second forced-termination grace
+  period. The total controller budget is 250 seconds: connection plus both scan
+  budgets/grace periods plus 60 seconds for authentication, inventory, and output.
+  These limits are recorded in the report. Other collection commands share that
+  total budget; they do not each receive an additional timeout allowance.
+- Connection or privilege failures without structured collection evidence can
+  retry once. A total timeout, partial response, or other collection error is not
+  automatically retried, so partial evidence is retained and a possibly running
+  scanner is not immediately started again.
 - A timeout does not prove a remote scanner stopped. Inspect the situation before
   planning another run; do not change security settings to force completion.
 
