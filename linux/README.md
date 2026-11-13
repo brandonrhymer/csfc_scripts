@@ -4,10 +4,10 @@ These Python tools are intended to be launched from a Linux management computer.
 They use the installed OpenSSH client to reach approved RHEL 9 targets. Python
 standard-library modules are used; no Python package installation is required.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
+**Full runtime and lab validation are incomplete.**
 Read [start here](../docs/operator-start-here.md) before preparing a private copy.
-Do not run the commands against operational targets until the later approved
-review and test phase is complete.
+Do not run the commands against operational targets until approved review and
+lab testing are complete.
 
 | Tool | Purpose | Remote changes | Runbook |
 | --- | --- | --- | --- |

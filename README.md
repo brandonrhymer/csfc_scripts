@@ -4,9 +4,8 @@ A collection of focused administration tools with script-specific runbooks.
 Examples are synthetic. Keep actual deployment identifiers, credentials,
 packages, inventories, and runtime evidence outside this repository.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
-The scripts are undergoing source review before that later phase. Earlier
-limited checks do not establish deployment readiness.
+**Full runtime and lab validation are incomplete.**
+Earlier limited checks and source review do not establish deployment readiness.
 
 ## Choose a starting point
 
@@ -14,7 +13,7 @@ limited checks do not establish deployment readiness.
 - [Linux tools](linux/README.md): ClamAV discovery and illustrative local-account discovery/remediation.
 - [Windows tools](windows/README.md): Defender, Nessus download, Splunk Forwarder, and attended KRBTGT rotation.
 - [MECM toolkit](mecm/README.md): Configuration Manager preparation, installation, and operations.
-- [Preparation record](docs/attachment-validation.md): imported files, prior checks, and deferred testing.
+- [Validation guide](docs/validation.md): check coverage, known limits, and required lab validation.
 - [Text sanitization](obfuscation/README.md): redact or consistently substitute sensitive values in a text file.
 
 Each tool's runbook explains prerequisites, inputs, effects, outputs, and known

@@ -6,9 +6,9 @@ These tools work together but are separate commands:
 - `local_admin_remediation.py` defaults to a remote preflight. Only `--apply`
   creates or changes the illustrative local administrator account.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
-The examples below describe a later approved workflow. They are not evidence of
-a completed lab test or permission to change operational systems.
+**Full runtime and lab validation are incomplete.**
+The examples below are not evidence of a completed lab test or permission to
+change operational systems.
 
 ## Illustrative baseline, not organizational policy
 
@@ -55,7 +55,7 @@ same computer.
 
 ## 2. Prepare discovery first
 
-These are separate commands to use when the later test/execution phase is approved:
+These are separate commands. Use discovery only on approved targets:
 
 ```bash
 # Help does not contact targets.
@@ -175,5 +175,5 @@ return `2`. Discovery likewise returns nonzero for findings that do not already
 match its illustrative baseline; inspect the report rather than assuming a
 nonzero code always means the script itself crashed.
 
-See the [preparation record](../../docs/attachment-validation.md). Testing,
-including actual SSH/sudo and RHEL changes, remains deferred.
+See the [validation guide](../../docs/validation.md). Actual SSH/sudo behavior
+and RHEL account changes still require approved lab validation.

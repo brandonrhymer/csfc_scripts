@@ -3,7 +3,7 @@
 The Windows utilities have different purposes and execution scopes. Read the
 individual runbook rather than treating them as a combined deployment suite.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
+**Full runtime and lab validation are incomplete.**
 Read [start here](../docs/operator-start-here.md) before preparing a private copy.
 
 | Tool | Purpose | Where it acts | Runbook |

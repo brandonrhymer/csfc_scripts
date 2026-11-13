@@ -7,9 +7,9 @@ signature-file timestamps, schedules, and results of benign scans of `/etc/hosts
 It does not install ClamAV, update definitions, change remote configuration, or
 run freshclam updates. Scanner invocations may create normal local logs on targets.
 
-**Current phase: code review. Testing and lab validation remain deferred.**
-Commands below describe the later approved workflow; do not treat them as a
-completed test or as deployment authorization.
+**Full runtime and lab validation are incomplete.**
+The commands below are usage examples, not evidence of completed testing or
+deployment authorization.
 
 ## Requirements and scope
 
@@ -41,8 +41,8 @@ Use the smallest approved target set. Keep actual addresses and names private.
 ## 2. Prepare the command
 
 Run from the directory containing the script. `--help` displays parameter help
-without contacting a target. Collection is a separate command for the later
-approved test/execution phase.
+without contacting a target. Collection is a separate command that requires
+approved targets and execution authorization.
 
 ```bash
 # Display options only.
@@ -111,5 +111,5 @@ certification, so a collected `NOT_ASSESSED` result is nonzero.
 - A timeout does not prove a remote scanner stopped. Inspect the situation before
   planning another run; do not change security settings to force completion.
 
-See the [preparation record](../../docs/attachment-validation.md) for the later
-testing and lab work, which remain deferred.
+See the [validation guide](../../docs/validation.md) for check coverage and
+remaining lab requirements.
