@@ -12,6 +12,13 @@ assuming identical parameters or behavior.
 - Cmdlet usage reviewed against Microsoft documentation: [New-CMDeviceCollection](https://learn.microsoft.com/en-us/powershell/module/configurationmanager/new-cmdevicecollection), [New-CMApplication](https://learn.microsoft.com/en-us/powershell/module/configurationmanager/new-cmapplication), and [Add-CMMsiDeploymentType](https://learn.microsoft.com/en-us/powershell/module/configurationmanager/add-cmmsideploymenttype). Deployment content is passed as the MSI file path.
 - Manual review confirmed no script creates deployments, changes shared WSUS settings/approvals, runs cleanup, installs a site, changes Group Policy, or embeds credentials.
 
+The repository's hosted [baseline run](https://github.com/brandonrhymer/csfc_scripts/actions/runs/43473398355)
+also passed the MECM syntax, collection and application-duplicate checks under
+Windows PowerShell 5.1 on Windows Server 2022 at commit
+`26801eec96e36fffe52b0905a4f31e44c76ad5e2` on November 13, 2026. These are isolated
+checks; live site and lab behavior remain deferred in
+[#29](https://github.com/brandonrhymer/csfc_scripts/issues/29).
+
 To repeat local checks, start a fresh PowerShell process for each test:
 
 ```powershell
@@ -25,7 +32,7 @@ The tests do not contact a site. Run them in a fresh shell because the collectio
 
 | Check | Expected result | Status |
 | --- | --- | --- |
-| Windows PowerShell 5.1 parser and help | Scripts parse and help/examples display | Not run |
+| Windows PowerShell 5.1 parser and help | Scripts parse and help/examples display | Hosted parsing passed; lab help/examples not run |
 | Site-status script on LAB | Provider and service/WSUS results correlate with console and logs | Not run |
 | WSUS export preview | No folder or export is created | Not run |
 | WSUS export with spaces in paths | New metadata, export log and complete additive content copy | Not run |
@@ -35,7 +42,9 @@ The tests do not contact a site. Run them in a fresh shell because the collectio
 | MSI create/duplicate/failure | Correct generated deployment type; duplicate rejected; partial app reported | Not run |
 | Disconnected patch pilot | Scan, internal download, installation/reboot and console compliance succeed | Not run |
 
-No production systems were contacted or changed. Syntax checks on Linux do not validate Windows COM, WSUS utilities, Windows PowerShell 5.1 runtime behavior, permissions, or installed ConfigMgr module compatibility.
+No production systems were contacted or changed by these checks. Hosted parsing
+and mocked tests do not validate Windows COM, WSUS utilities, live permissions,
+or installed ConfigMgr module compatibility.
 
 ## Environment requirements and limits
 
@@ -58,4 +67,7 @@ powershell.exe -NoProfile -File .\mecm\tests\check-application-duplicates.ps1
 
 The status script states in its help and output that SQL checking covers only the local default instance. The install guide directs operators to inspect named/remote instances separately. Collection help and the maintenance guide explain manual refresh, Update Membership, and a reviewed schedule before query-based membership.
 
-The recorded checks used PowerShell 7.4.13 on Linux. No Windows PowerShell 5.1, Windows services, MSI COM, WSUS or real MECM execution was performed. These results do not establish lab or deployment readiness.
+The earlier local checks used PowerShell 7.4.13 on Linux; the hosted baseline
+above adds Windows PowerShell 5.1 syntax and mocked coverage. Windows services,
+MSI COM, WSUS and real MECM execution remain unverified. These results do not
+establish lab or deployment readiness.

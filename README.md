@@ -4,8 +4,14 @@ A collection of focused administration tools with script-specific runbooks.
 Examples are synthetic. Keep actual deployment identifiers, credentials,
 packages, inventories, and runtime evidence outside this repository.
 
+Each operational script is a separately versioned product. Download the product
+you need from a published release, or use a bundle containing several products.
+The [release and download guide](docs/releases.md) explains package selection,
+verification, candidate builds, and the quarterly bundle schedule. Operators do
+not need Bun or the build tooling to use a downloaded product.
+
 **Full runtime and lab validation are incomplete.**
-Earlier limited checks and source review do not establish deployment readiness.
+Hosted isolated checks and source review do not establish deployment readiness.
 
 ## Choose a starting point
 
@@ -14,9 +20,10 @@ Earlier limited checks and source review do not establish deployment readiness.
 - [Windows tools](windows/README.md): Defender, Nessus download, Splunk Forwarder, and attended KRBTGT rotation.
 - [MECM toolkit](mecm/README.md): Configuration Manager preparation, installation, and operations.
 - [Validation guide](docs/validation.md): check coverage, known limits, and required lab validation.
+- [Releases and downloads](docs/releases.md): independent products, selectable bundles, and maintainer release steps.
 - [Text sanitization](obfuscation/README.md): redact or consistently substitute sensitive values in a text file.
 - [Contributing](CONTRIBUTING.md): bounded changes, review, and validation evidence.
-- [GitHub workflow](docs/github-workflow.md): issues, project tracking, automated checks, and agent profiles.
+- [GitHub workflow](docs/github-workflow.md): issues, project tracking, validation/package checks, and agent profiles.
 
 Each tool's runbook explains prerequisites, inputs, effects, outputs, and known
 limits. A script being present here is not approval to execute it on any system.

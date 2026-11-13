@@ -1,0 +1,2 @@
+# Test the same line-ending bytes that product downloads contain.
+* text=auto eol=lf

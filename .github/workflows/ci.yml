@@ -5,6 +5,17 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      product:
+        type: string
+        default: all
+      bundle_products:
+        type: string
+        default: ''
+      bundle_version:
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -82,3 +93,46 @@ jobs:
           }
       - name: Verify committed hashes, syntax, analyzer and mocked behavior
         run: ./windows/reset-krbtgt/tools/Invoke-ReleaseVerification.ps1
+
+  packages:
+    name: Product package checks
+    needs: [linux, windows, krbtgt]
+    runs-on: windows-2022
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - name: Packaging and release regressions
+        run: bun test tools/release
+      - name: Require versions for changed product payloads
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: bun tools/release/versions.ts
+      - name: Build committed products and verify archives
+        env:
+          PRODUCT: ${{ inputs.product || 'all' }}
+          BUNDLE_PRODUCTS: ${{ inputs.bundle_products }}
+          BUNDLE_VERSION: ${{ inputs.bundle_version }}
+        run: |
+          $arguments = @('tools/release/package.ts', '--output', 'dist', '--product', $env:PRODUCT)
+          if ($env:BUNDLE_PRODUCTS) { $arguments += @('--bundle-products', $env:BUNDLE_PRODUCTS) }
+          if ($env:BUNDLE_VERSION) { $arguments += @('--bundle-version', $env:BUNDLE_VERSION) }
+          & bun @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          bun tools/release/package.ts --verify dist
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: product-packages
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
