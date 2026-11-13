@@ -27,7 +27,11 @@ $ErrorActionPreference = 'Stop'
 # Keep all provider operations inside the owned child process. The parent can
 # terminate its worker even when a task provider call does not return.
 $worker = {
-    param([string]$Mode, [string]$EnableDisabled, [int]$OverdueHours)
+    param(
+        [Parameter(Mandatory)][ValidateSet('Preview', 'Apply')][string]$Mode,
+        [Parameter(Mandatory)][ValidateSet('No', 'Yes')][string]$EnableDisabled,
+        [Parameter(Mandatory)][ValidateRange(1, 8760)][int]$OverdueHours
+    )
     $ErrorActionPreference = 'Stop'
     Set-StrictMode -Version 2.0
     $taskName = 'Configuration Manager Health Evaluation'
@@ -207,7 +211,9 @@ try {
     $encodedParameters = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($serialized))
     # Operator parameters are serialized data, never PowerShell source.
     $childSource = '$parameters = [Management.Automation.PSSerializer]::Deserialize([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(''' + $encodedParameters + '''))); & {' + [Environment]::NewLine + $worker.ToString() + [Environment]::NewLine + '} @parameters'
-    $entry = '$source = [Console]::In.ReadToEnd(); & ([scriptblock]::Create($source))'
+    # Console encodings vary between MECM and hosted runners. Read UTF-8 with
+    # BOM detection and stop on bootstrap errors before any provider is reached.
+    $entry = '$ErrorActionPreference = ''Stop''; $reader = New-Object IO.StreamReader([Console]::OpenStandardInput(), [Text.Encoding]::UTF8, $true); $source = $reader.ReadToEnd().TrimStart([char]0xFEFF); & ([scriptblock]::Create($source))'
     $encodedEntry = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($entry))
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell\v1.0\powershell.exe'
@@ -225,12 +231,13 @@ try {
     # Input transfer shares the worker deadline. AutoFlush ensures Close cannot
     # perform a new blocking flush after a completed write; never close a writer
     # with a pending write until its owned process has been terminated.
-    $process.StandardInput.AutoFlush = $true
-    $write = $process.StandardInput.WriteAsync($childSource)
+    $inputWriter = New-Object IO.StreamWriter($process.StandardInput.BaseStream, (New-Object Text.UTF8Encoding($false)))
+    $inputWriter.AutoFlush = $true
+    $write = $inputWriter.WriteAsync($childSource)
     $remaining = [Math]::Max(0, [int]($TimeoutSeconds * 1000 - $clock.ElapsedMilliseconds))
     if (-not $write.Wait($remaining)) { $timedOut = $true }
     if (-not $timedOut) {
-        $process.StandardInput.Close()
+        $inputWriter.Close()
         $remaining = [Math]::Max(0, [int]($TimeoutSeconds * 1000 - $clock.ElapsedMilliseconds))
         if (-not $process.WaitForExit($remaining)) { $timedOut = $true }
     }
