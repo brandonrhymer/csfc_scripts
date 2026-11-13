@@ -1,0 +1,12 @@
+{
+  "SchemaVersion": 1,
+  "Product": "mecm-agent-restart",
+  "Example": true,
+  "Target": {
+    "ServiceName": "SyntheticAppAgent",
+    "ExpectedPathName": "\"C:\\Program Files\\SyntheticApp\\agent.exe\" --service",
+    "ExpectedStartName": "LocalSystem",
+    "ExpectedStartMode": "Auto",
+    "ExpectedServiceType": "Own Process"
+  }
+}

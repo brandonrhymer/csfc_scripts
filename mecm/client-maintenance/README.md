@@ -1,11 +1,14 @@
 # MECM client maintenance candidates
 
-These two standalone Windows PowerShell 5.1 scripts run on an individual
+These eleven standalone Windows PowerShell 5.1 scripts run on an individual
 Configuration Manager client. MECM Run Scripts supplies approved parameters to
-collection members. They require no network access, downloads, console module,
-interactive menu, or source edits on the client.
+collection members. They require no Internet downloads, console module,
+interactive menu, or source edits on the client. Policy, DNS and time requests
+can contact the client's existing domain, DNS and time infrastructure.
 
-**Local candidates only: an approved real-client pilot remains required.**
+**Development candidates: an approved real-client pilot remains required.**
+GitHub Actions is the primary integration and test gate; local checks support
+development. There is no MECM test environment yet.
 Mocked tests establish control flow and failure handling; they do not establish
 that a particular client version exposes the expected interfaces or that an
 operational collection is safe to target.
@@ -14,16 +17,30 @@ operational collection is safe to target.
 |---|---|---|
 | `mecm-cache-cleanup` | [Cache cleanup](cache-cleanup.md) | Preview eligible old content and remove it through the client cache interface |
 | `mecm-ccmeval` | [CcmEval](ccmeval.md) | Request the existing client health evaluation task when overdue |
+| `mecm-service-start` | [Service start](service-start.md) | Start an approved stopped application service |
+| `mecm-computer-policy-refresh` | [Computer policy](computer-policy-refresh.md) | Request computer Group Policy refresh without forced reboot or logoff |
+| `mecm-dns-cache-flush` | [DNS cache](dns-cache-flush.md) | Clear the local resolver cache |
+| `mecm-time-sync` | [Time synchronization](time-sync.md) | Request synchronization from the configured time source |
+| `mecm-dns-registration` | [DNS registration](dns-registration.md) | Request registration only with approved client ownership and adapter scope |
+| `mecm-agent-restart` | [Agent restart](agent-restart.md) | Restart one approved application agent without dependent-service cascades |
+| `mecm-task-enable` | [Task enablement](task-enable.md) | Enable one approved existing disabled task without a direct run request |
+| `mecm-staging-cleanup` | [Staging cleanup](staging-cleanup.md) | Remove expired disposable application staging files |
+| `mecm-config-restore` | [Configuration restore](config-restore.md) | Back up and restore an approved narrow application configuration |
 
-Each product has its own version and ZIP. A selected bundle can contain both;
+Each product has its own version and ZIP. A selected bundle can contain several;
 bundles have a separate release cadence. Verify the downloaded package and its
 hashes before importing the script. Review the product runbook and the
 [pilot checklist](pilot-checklist.md) before executing even a preview.
 
-Both scripts default to `Mode=Preview`. Apply is a separate, explicit selection.
+All scripts default to `Mode=Preview`. Apply is a separate, explicit selection.
 Their integer and string parameters suit MECM Run Scripts; do not edit the source
 to set an environment-specific policy. Run Scripts executes under the computer
 account. Use the normal script author, approver and runner roles.
+
+The five application-specific products require validated local policies pinned
+by independently approved hashes. Read [application policy approval](policies.md).
+Included examples are synthetic; actual service/task/path/configuration approval
+remains outstanding.
 
 The result contains one of `Changed`, `Already correct`, `Skipped`, or `Failed`
 and a reason. Read the reason and counters: a successful invocation is not proof

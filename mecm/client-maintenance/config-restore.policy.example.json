@@ -1,0 +1,14 @@
+{
+  "SchemaVersion": 1,
+  "Approved": false,
+  "ApprovalReference": "EXAMPLE-NOT-APPROVED",
+  "ApplicationId": "SyntheticMaintenanceAgent",
+  "ApplicationRoot": "C:\\SyntheticLab\\Applications\\SyntheticMaintenanceAgent",
+  "ActivityProtocol": "ExclusiveMaintenanceGuard/v1",
+  "SourcePath": "C:\\SyntheticLab\\Applications\\SyntheticMaintenanceAgent\\ApprovedConfiguration\\maintenance-display.json",
+  "SourceSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "DestinationPath": "C:\\SyntheticLab\\Applications\\SyntheticMaintenanceAgent\\maintenance-display.json",
+  "DestinationBeforeSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "BackupPath": "C:\\SyntheticLab\\Applications\\SyntheticMaintenanceAgent\\ConfigurationBackup\\maintenance-display.before.json",
+  "ConfigurationSchema": "MaintenanceDisplay/v1"
+}

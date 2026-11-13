@@ -16,6 +16,17 @@ of truth for versions, entry points and included dependencies.
 | `mecm-wsus-export` | [Export WSUS material](../mecm/docs/03-first-patches.md) |
 | `mecm-collections` | [Prepare MECM collections](../mecm/docs/04-maintain.md) |
 | `mecm-msi-application` | [Create a MECM MSI application](../mecm/docs/04-maintain.md) |
+| `mecm-cache-cleanup` | [Selective client cache cleanup](../mecm/client-maintenance/cache-cleanup.md) |
+| `mecm-ccmeval` | [Overdue client evaluation](../mecm/client-maintenance/ccmeval.md) |
+| `mecm-service-start` | [Approved application service start](../mecm/client-maintenance/service-start.md) |
+| `mecm-computer-policy-refresh` | [Computer Group Policy refresh](../mecm/client-maintenance/computer-policy-refresh.md) |
+| `mecm-dns-cache-flush` | [DNS client cache flush](../mecm/client-maintenance/dns-cache-flush.md) |
+| `mecm-time-sync` | [Configured-source time synchronization request](../mecm/client-maintenance/time-sync.md) |
+| `mecm-dns-registration` | [Client-owned DNS registration request](../mecm/client-maintenance/dns-registration.md) |
+| `mecm-agent-restart` | [Approved application agent restart](../mecm/client-maintenance/agent-restart.md) |
+| `mecm-task-enable` | [Approved application task enablement](../mecm/client-maintenance/task-enable.md) |
+| `mecm-staging-cleanup` | [Expired application staging cleanup](../mecm/client-maintenance/staging-cleanup.md) |
+| `mecm-config-restore` | [Approved application configuration restore](../mecm/client-maintenance/config-restore.md) |
 | `text-sanitizer` | [Sanitize a text file](../obfuscation/README.md) |
 | `defender-update` | [Stage and apply Defender updates](../windows/defender/README.md) |
 | `nessus-plugin-download` | [Download Nessus plugins](../windows/nessus/README.md) |
@@ -26,8 +37,8 @@ of truth for versions, entry points and included dependencies.
 | `krbtgt-test` | [Run the attended KRBTGT test](../windows/reset-krbtgt/docs/operator-runbook.md) |
 | `krbtgt-reset` | [Run attended KRBTGT rotation](../windows/reset-krbtgt/docs/operator-runbook.md) |
 
-The initial catalog versions are `0.1.0`, except the four KRBTGT products at
-`0.1.1`. Product release tags use `<product-id>/v<version>`, such as
+Read the catalog for each product's current version. Product release tags use
+`<product-id>/v<version>`, such as
 `clamav-discovery/v0.1.0`. Bundle tags use `bundle/v<version>`.
 
 ## Download and use a package
@@ -89,7 +100,7 @@ if your transfer process requires verification without network access.
 ## Candidate builds
 
 Pull requests and pushes to `main` run **Offline validation**. Its **Product
-package checks** job builds all 18 candidate product ZIPs and a bundle from the
+package checks** job builds all 27 candidate product ZIPs and a bundle from the
 tested commit. The downloadable Actions artifact is named `product-packages`
 and is retained for 14 days. These are review candidates; the workflow does not
 publish a release or deploy a script.

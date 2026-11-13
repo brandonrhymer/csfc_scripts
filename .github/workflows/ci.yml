@@ -65,10 +65,6 @@ jobs:
         run: ./mecm/tests/check-application-duplicates.ps1
       - name: WSUS export path and failure guards
         run: ./mecm/tests/check-wsus-export.ps1
-      - name: MECM client cache safety and timeout checks
-        run: ./mecm/tests/check-cache-cleanup.ps1
-      - name: MECM overdue CcmEval safety and timeout checks
-        run: ./mecm/tests/check-ccmeval.ps1
       - name: Text sanitizer synthetic regressions
         shell: pwsh
         run: |
@@ -100,15 +96,68 @@ jobs:
       - name: Verify committed hashes, syntax, analyzer and mocked behavior
         run: ./windows/reset-krbtgt/tools/Invoke-ReleaseVerification.ps1
 
+  mecm_clients:
+    name: MECM client checks (${{ matrix.product }})
+    runs-on: windows-2022
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { product: mecm-cache-cleanup, script: check-cache-cleanup.ps1 }
+          - { product: mecm-ccmeval, script: check-ccmeval.ps1 }
+          - { product: mecm-service-start, script: check-service-start.ps1 }
+          - { product: mecm-computer-policy-refresh, script: check-computer-policy-refresh.ps1 }
+          - { product: mecm-dns-cache-flush, script: check-dns-cache-flush.ps1 }
+          - { product: mecm-time-sync, script: check-time-sync.ps1 }
+          - { product: mecm-dns-registration, script: check-dns-registration.ps1 }
+          - { product: mecm-agent-restart, script: check-agent-restart.ps1 }
+          - { product: mecm-task-enable, script: check-task-enable.ps1 }
+          - { product: mecm-staging-cleanup, script: check-staging-cleanup.ps1 }
+          - { product: mecm-config-restore, script: check-config-restore.ps1 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Exercise isolated synthetic behavior and timeout cases
+        shell: powershell
+        env:
+          TEST_SCRIPT: ${{ matrix.script }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion -lt [version]'5.1') { throw 'Windows PowerShell 5.1 is required.' }
+          & (Join-Path './mecm/tests' $env:TEST_SCRIPT) *>&1 | Tee-Object -FilePath mecm-test.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: test-${{ matrix.product }}
+          path: mecm-test.log
+          if-no-files-found: error
+          retention-days: 14
+
   packages:
     name: Product package checks
-    needs: [linux, windows, krbtgt]
+    needs: [linux, windows, krbtgt, mecm_clients]
+    # A skipped required check can satisfy branch protection. Always start this
+    # required job and explicitly fail when any prerequisite did not succeed.
+    if: ${{ always() }}
     runs-on: windows-2022
     timeout-minutes: 15
     defaults:
       run:
         shell: pwsh
     steps:
+      - name: Require every integration suite to succeed
+        env:
+          LINUX_RESULT: ${{ needs.linux.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+          KRBTGT_RESULT: ${{ needs.krbtgt.result }}
+          MECM_RESULT: ${{ needs.mecm_clients.result }}
+        run: |
+          foreach ($result in @($env:LINUX_RESULT, $env:WINDOWS_RESULT, $env:KRBTGT_RESULT, $env:MECM_RESULT)) {
+            if ($result -ne 'success') { throw "A required integration suite did not succeed: $result" }
+          }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

@@ -1,0 +1,10 @@
+{
+  "SchemaVersion": 1,
+  "Product": "mecm-task-enable",
+  "Example": true,
+  "Target": {
+    "TaskPath": "\\SyntheticApp\\",
+    "TaskName": "Synthetic Maintenance",
+    "DefinitionSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

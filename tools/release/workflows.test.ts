@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '../..');
@@ -10,8 +10,23 @@ describe('delivery workflow boundaries', () => {
     expect(ci.permissions).toEqual({ contents: 'read' });
     expect(Object.hasOwn(ci.on, 'pull_request')).toBe(true);
     expect(Object.hasOwn(ci.on, 'pull_request_target')).toBe(false);
-    expect(ci.jobs.packages.needs.sort()).toEqual(['krbtgt', 'linux', 'windows']);
+    expect(ci.jobs.packages.needs.sort()).toEqual(['krbtgt', 'linux', 'mecm_clients', 'windows']);
     for (const job of Object.values(ci.jobs) as any[]) expect(job.permissions).toBeUndefined();
+  });
+  test('every client product has a dedicated suite and failures cannot skip the required package gate', () => {
+    const ci = yaml('ci.yml');
+    const catalog = JSON.parse(readFileSync(resolve(root, 'tools/release/catalog.json'), 'utf8'));
+    const products = catalog.products.filter((p: any) => p.entrypoint.startsWith('mecm/client-maintenance/')).map((p: any) => p.id).sort();
+    const matrix = ci.jobs.mecm_clients.strategy.matrix.include;
+    expect(matrix.map((item: any) => item.product).sort()).toEqual(products);
+    expect(new Set(matrix.map((item: any) => item.script)).size).toBe(products.length);
+    for (const item of matrix) expect(existsSync(resolve(root, 'mecm/tests', item.script))).toBe(true);
+    expect(ci.jobs.mecm_clients.strategy['fail-fast']).toBe(false);
+    expect(ci.jobs.packages.if).toBe('${{ always() }}');
+    const guard = ci.jobs.packages.steps[0];
+    expect(Object.values(guard.env).sort()).toEqual(ci.jobs.packages.needs.map((name: string) => '${{ needs.' + name + '.result }}').sort());
+    for (const key of Object.keys(guard.env)) expect(guard.run).toContain('$env:' + key);
+    expect(guard.run).toContain("if ($result -ne 'success') { throw");
   });
   test('bundle releases are scheduled quarterly, never on script pushes', () => {
     const release = yaml('release.yml');

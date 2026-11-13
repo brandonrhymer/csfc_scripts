@@ -1,0 +1,14 @@
+{
+  "SchemaVersion": 1,
+  "Approved": false,
+  "ApprovalReference": "EXAMPLE-NOT-APPROVED",
+  "ApplicationId": "SyntheticMaintenanceAgent",
+  "Root": "C:\\SyntheticLab\\Applications\\SyntheticMaintenanceAgent\\DisposableStaging",
+  "ActivityProtocol": "ExclusiveMaintenanceGuard/v1",
+  "FileNamePatterns": ["chunk-*.disposable"],
+  "MinimumAgeDays": 30,
+  "MaximumEntries": 100,
+  "MaximumDeleteBytes": 104857600,
+  "ActivityMarkers": ["transfer.active"],
+  "ProcessNames": ["SyntheticMaintenanceAgent"]
+}

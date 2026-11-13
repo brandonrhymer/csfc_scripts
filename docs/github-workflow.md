@@ -26,13 +26,15 @@ parameters, safety requirements or validation claims.
 
 The [Offline validation workflow](../.github/workflows/ci.yml) runs on pull
 requests, pushes to `main`, manual dispatch, and calls from release preparation.
-Its job names are:
+GitHub Actions is the primary integration and test gate. Local checks support
+development; an operational pilot remains separate. Its job names are:
 
 | Check | Environment | Scope |
 | --- | --- | --- |
 | Linux offline checks | Ubuntu 24.04, Python 3, Bash and PowerShell 7.4+ | Discovers all `tests/test_*.py` suites; sanitizer regressions including Unix permissions |
 | Windows offline checks | Windows Server 2022; Windows PowerShell 5.1 and PowerShell 7.4+ | Parser/Defender helpers, MECM mocks, sanitizer regressions |
 | KRBTGT offline release gates | Windows Server 2022; Windows PowerShell 5.1 | Committed hashes, parser, analyzer and mocked Pester suite |
+| MECM client checks (product ID) | Eleven isolated Windows Server 2022 jobs; Windows PowerShell 5.1 | Per-product synthetic provider/control-flow tests, owned-process timeouts and disposable filesystem fixtures |
 | Product package checks | Windows Server 2022; Bun 1.4.2 | Packaging tests, product version checks, committed-source ZIPs and bundle, archive verification and extraction checks |
 
 The tests use synthetic inputs and do not contact operational targets. Hosted
@@ -44,7 +46,12 @@ The workflow uses a read-only contents token, disables checkout credential
 persistence and pins actions to full commit SHAs. Dependabot proposes weekly
 GitHub Actions dependency updates; review those PRs before merging.
 
-On pull requests and `main`, **Product package checks** produces all 18 product
+The required **Product package checks** job always evaluates the result of every
+prerequisite job, including the complete MECM matrix. A failed, cancelled or
+skipped prerequisite fails this gate instead of merely skipping the build. Each
+MECM matrix job uploads its synthetic test log for 14 days, including failed runs.
+
+On pull requests and `main`, **Product package checks** produces all 27 product
 ZIPs plus a bundle in the `product-packages` Actions artifact, retained for 14
 days. Packages include declared dependencies and runbooks. Download and inspect
 these candidates using the [release guide](releases.md#candidate-builds).
@@ -52,12 +59,11 @@ The version check requires a strictly newer version for every changed product
 payload and rejects downgrades. Shared packaged-document changes can affect
 several products. Unrelated commits leave an unchanged product's ZIP stable.
 
-The [validation matrix](validation.md#package-check-matrix) lists local commands
-and evidence limits. The three existing offline jobs passed on the recorded
-[baseline run](https://github.com/brandonrhymer/csfc_scripts/actions/runs/43473398355).
-That result predates the packaging extension; use a successful run of the new
-revision before claiming the package job passed or requiring it in repository
-rules. Neither committed workflow files nor passing mocks prove lab readiness.
+The [validation matrix](validation.md#package-check-matrix) lists existing local
+commands and evidence limits. Each [client-maintenance runbook](../mecm/client-maintenance/README.md)
+names its synthetic suite and remaining pilot work. Use the successful Actions
+run for the exact revision being reviewed; earlier runs do not validate later
+changes. Neither workflow files nor passing mocks prove lab readiness.
 
 ## Product releases and quarterly bundles
 
