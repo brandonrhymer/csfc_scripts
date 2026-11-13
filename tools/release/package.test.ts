@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildRelease, checkVersionChanges, parseArgs, selectProducts, validateCatalog, validateVersion, verifyOutput, verifyPreservedPackage, verifyProductArchive, type Catalog } from "./package";
@@ -8,6 +8,9 @@ import { crc32, createZip, readZip, safePath, sha256, type ZipFile } from "./zip
 
 const temporaryRoots: string[] = [];
 const sourceRepo = path.resolve(import.meta.dir, "../..");
+// These cases create Git repositories/worktrees and spawn several processes.
+// Hosted Windows timings exceed Bun's 5-second unit-test default.
+const gitIntegrationTimeoutMs = 30_000;
 function temporary() {
   const root = mkdtempSync(path.join(os.tmpdir(), "csfc-package-test-"));
   temporaryRoots.push(root); return root;
@@ -30,8 +33,8 @@ function commit(repo: string) {
   git(repo, ["add", "--all"]); git(repo, ["-c", "user.name=Packaging fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "fixture"]);
   return git(repo, ["rev-parse", "HEAD"]).toString().trim();
 }
-function fixture() {
-  const root = temporary(), repo = path.join(root, "repo"); mkdirSync(repo);
+function fixture(root = temporary()) {
+  const repo = path.join(root, "repo"); mkdirSync(repo);
   git(repo, ["init", "-q"]); git(repo, ["config", "core.autocrlf", "false"]);
   const catalog: Catalog = {
     schemaVersion: 1, bundleVersion: "0.1.0", sharedFiles: ["docs/safety.md", "docs/context.md"], products: [
@@ -149,7 +152,29 @@ describe("committed source packaging", () => {
     git(f.repo, ["worktree", "add", "--detach", worktree, f.sha]);
     expect(() => buildRelease({ repo: worktree, output: path.join(f.repo, ".git", "objects", "release"), product: "alpha" })).toThrow("Git metadata");
     expect(buildRelease({ repo: worktree, output: path.join(worktree, "candidate"), product: "alpha" }).products[0].id).toBe("alpha");
-  });
+  }, gitIntegrationTimeoutMs);
+  if (process.platform === "win32") {
+    const aliasRoot = temporary();
+    const shortRoot = execFileSync("pwsh", ["-NoProfile", "-NonInteractive", "-Command", "$fso = New-Object -ComObject Scripting.FileSystemObject; [Console]::Write($fso.GetFolder($env:CSFC_TEST_ROOT).ShortPath)"], {
+      env: { ...process.env, CSFC_TEST_ROOT: aliasRoot }, windowsHide: true, timeout: 10_000, stdio: ["ignore", "pipe", "pipe"],
+    }).toString();
+    const aliasAvailable = shortRoot.toLowerCase() !== realpathSync.native(aliasRoot).toLowerCase();
+    const name = "Windows directory aliases cannot bypass linked-worktree Git metadata protection";
+    test.skipIf(!aliasAvailable)(name + (aliasAvailable ? "" : " (volume exposes no 8.3 alias)"), () => {
+      const f = fixture(aliasRoot), worktree = path.join(f.repo, ".git", "managed", "worktree");
+      git(f.repo, ["worktree", "add", "--detach", worktree, f.sha]);
+      expect(shortRoot.toLowerCase()).not.toBe(realpathSync.native(f.root).toLowerCase());
+      const metadata = path.join(f.repo, ".git", "objects"), alias = path.join(shortRoot, "repo", ".git", "objects");
+      expect(realpathSync.native(alias)).toBe(realpathSync.native(metadata));
+      const output = path.join(alias, "not-yet-created", "release");
+      const aliasWorktree = path.join(shortRoot, "repo", ".git", "managed", "worktree");
+      expect(() => buildRelease({ repo: aliasWorktree, output, product: "alpha" })).toThrow("Git metadata");
+      expect(existsSync(path.join(metadata, "not-yet-created"))).toBe(false);
+      expect(() => buildRelease({ repo: worktree, output: aliasWorktree, product: "alpha" })).toThrow("repository");
+      expect(buildRelease({ repo: aliasWorktree, output: path.join(aliasWorktree, "candidate", "nested"), product: "alpha" }).products[0].id).toBe("alpha");
+      expect(existsSync(path.join(worktree, "candidate", "nested", "alpha-1.2.3.zip"))).toBe(true);
+    }, gitIntegrationTimeoutMs);
+  }
 });
 
 describe("independent product versions", () => {
@@ -172,7 +197,7 @@ describe("independent product versions", () => {
     expect(report.engineChanged).toBe(false);
     expect(report.products.find(product => product.id === "alpha")).toEqual({ id: "alpha", baseVersion: "1.2.3", version: "1.2.3", contentChanged: false, versionChanged: false });
     expect(report.products.find(product => product.id === "beta")!.contentChanged).toBe(true);
-  });
+  }, gitIntegrationTimeoutMs);
   test("runtime and runbook edits each require a product version increase", () => {
     const f = fixture();
     write(f.repo, "alpha/inspect.ps1", "throw 'changed runtime'\n");
@@ -186,7 +211,7 @@ describe("independent product versions", () => {
     expect(() => checkVersionChanges(f.repo, bumpedRuntime, runbook)).toThrow("payload changed without a version increase: alpha");
     f.catalog.products[0].version = "1.2.5"; write(f.repo, "tools/release/catalog.json", JSON.stringify(f.catalog));
     expect(checkVersionChanges(f.repo, bumpedRuntime, commit(f.repo)).products[0].version).toBe("1.2.5");
-  });
+  }, gitIntegrationTimeoutMs);
   test("semantic precedence rejects downgrades and build-only bumps for changed inputs", () => {
     expect(Bun.semver.order("1.10.0", "1.2.0")).toBeGreaterThan(0);
     expect(Bun.semver.order("1.0.0-alpha.1", "1.0.0-alpha.beta")).toBeLessThan(0);
@@ -198,7 +223,7 @@ describe("independent product versions", () => {
     f.catalog.products[0].version = "1.2.3+changed"; write(f.repo, "tools/release/catalog.json", JSON.stringify(f.catalog));
     write(f.repo, "alpha/helper.psm1", "changed helper\n");
     expect(() => checkVersionChanges(f.repo, f.sha, commit(f.repo))).toThrow("payload changed without a version increase");
-  });
+  }, gitIntegrationTimeoutMs);
   test("first catalog introduction is allowed and metadata/shared dependency changes are checked", () => {
     const f = fixture();
     git(f.repo, ["update-index", "--force-remove", "tools/release/catalog.json"]);
@@ -212,7 +237,7 @@ describe("independent product versions", () => {
     f.catalog.products[0].name = "Alpha inspection"; write(f.repo, "tools/release/catalog.json", JSON.stringify(f.catalog));
     write(f.repo, "docs/safety.md", "# Updated shared safety instructions\n");
     expect(() => checkVersionChanges(f.repo, introduced, commit(f.repo))).toThrow("payload changed without a version increase");
-  });
+  }, gitIntegrationTimeoutMs);
   test("changed, added or removed build-engine files require every existing product version to advance", () => {
     const f = fixture();
     write(f.repo, "tools/release/package.ts", "// Original package template\n");
@@ -231,7 +256,7 @@ describe("independent product versions", () => {
     git(f.repo, ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "remove ZIP engine"]);
     const removed = git(f.repo, ["rev-parse", "HEAD"]).toString().trim();
     expect(() => checkVersionChanges(f.repo, allBumped, removed)).toThrow("Packaging engine changed without a version increase");
-  });
+  }, gitIntegrationTimeoutMs);
 });
 
 describe("untrusted artifact verification", () => {
