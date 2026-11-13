@@ -290,20 +290,34 @@ function assertNoSymlinkAncestors(target: string) {
     const parent = path.dirname(current); if (parent === current) break; current = parent;
   }
 }
+function canonicalPath(target: string) {
+  let ancestor = path.resolve(target);
+  const missing: string[] = [];
+  while (!existsSync(ancestor)) {
+    const parent = path.dirname(ancestor);
+    assert(parent !== ancestor, "Path has no existing filesystem ancestor");
+    missing.unshift(path.basename(ancestor));
+    ancestor = parent;
+  }
+  // native realpath expands Windows 8.3 aliases; ordinary realpath preserves
+  // those spellings. Resolve the existing ancestor even for a new output tree.
+  return path.join(realpathSync.native(ancestor), ...missing);
+}
 function validateOutput(output: string, repo?: string, requireEmpty = true) {
   assert(typeof output === "string" && output.trim().length > 0, "Output directory is required");
-  const resolved = path.resolve(output);
+  const requested = path.resolve(output);
+  assertNoSymlinkAncestors(requested);
+  const resolved = canonicalPath(requested);
   assert(resolved !== path.parse(resolved).root, "Filesystem root is not an output directory");
-  assertNoSymlinkAncestors(resolved);
   if (repo) {
-    const root = realpathSync(repo), relation = path.relative(resolved, root);
+    const root = canonicalPath(repo), relation = path.relative(resolved, root);
     assert(relation.startsWith(".." + path.sep) || relation === ".." || path.isAbsolute(relation), "Output cannot be the repository or its ancestor");
     const relative = path.relative(root, resolved);
     assert(!relative.split(path.sep).some(part => part.toLowerCase() === ".git"), "Output cannot be Git metadata");
-    const gitDir = path.resolve(root, git(root, ["rev-parse", "--git-dir"]).toString().trim());
+    const gitDir = canonicalPath(path.resolve(root, git(root, ["rev-parse", "--git-dir"]).toString().trim()));
     const insideGit = path.relative(gitDir, resolved);
     assert(insideGit.startsWith(".." + path.sep) || insideGit === ".." || path.isAbsolute(insideGit), "Output cannot be Git metadata");
-    const commonDir = path.resolve(root, git(root, ["rev-parse", "--git-common-dir"]).toString().trim());
+    const commonDir = canonicalPath(path.resolve(root, git(root, ["rev-parse", "--git-common-dir"]).toString().trim()));
     const isWithin = (parent: string, child: string) => {
       const relativePath = path.relative(parent, child);
       return !path.isAbsolute(relativePath) && relativePath !== ".." && !relativePath.startsWith(".." + path.sep);
