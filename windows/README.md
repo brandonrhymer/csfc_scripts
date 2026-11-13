@@ -12,6 +12,7 @@ Read [start here](../docs/operator-start-here.md) before preparing a private cop
 | `nessus/download-plugins.ps1` | Download an approved plugin archive | Writes one local file; no plugin import | [Nessus](nessus/README.md) |
 | `splunk/install-forwarder.ps1` | Install a staged Universal Forwarder MSI | Current computer only | [Splunk](splunk/README.md) |
 | `splunk/uninstall-forwarder.ps1` | Remove registered Universal Forwarder MSI products | Current computer only | [Splunk](splunk/README.md) |
+| `reset-krbtgt/Invoke-KrbtgtReset.ps1` | Attended, routine KRBTGT rotation for the documented two-DC profile | Current domain, through the selected DC; requires separate Preflight and Test phases | [KRBTGT rotation](reset-krbtgt/README.md) |
 
 ## Shared preparation
 

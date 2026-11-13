@@ -1,0 +1,21 @@
+{
+  "fixture": "preflight-success",
+  "profile": {
+    "domainDnsRoot": "contoso.example",
+    "executionDc": "dc1.contoso.example",
+    "destinationDc": "dc2.contoso.example",
+    "domainControllerCount": 2,
+    "writableServer2022Count": 2,
+    "rodcs": 0,
+    "maxTicketAgeMinutes": 600
+  },
+  "target": {
+    "samAccountName": "krbtgt",
+    "rid": 502,
+    "sid": "S-1-5-21-100-200-300-502",
+    "objectGuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "enabled": false
+  },
+  "expectedResult": "Succeeded",
+  "directoryWritesExpected": 0
+}
