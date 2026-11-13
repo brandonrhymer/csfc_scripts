@@ -38,6 +38,15 @@ REPORT_DIR = Path("/var/log/clamav_assessment")
 REPORT_FILE = REPORT_DIR / "latest.json"
 
 CONNECT_TIMEOUT_SECONDS = 60
+SCAN_TIMEOUT_SECONDS = 60
+SCAN_KILL_GRACE_SECONDS = 5
+COLLECTION_OVERHEAD_SECONDS = 60
+# The whole session includes connection, two sequential scans, their kill
+# grace periods, and time for authentication, inventory, and output draining.
+COLLECTION_TIMEOUT_SECONDS = (
+    CONNECT_TIMEOUT_SECONDS + 2 * (SCAN_TIMEOUT_SECONDS + SCAN_KILL_GRACE_SECONDS)
+    + COLLECTION_OVERHEAD_SECONDS
+)
 RETRIES = 1
 MAX_WORKERS = 5
 SIGNATURE_MAX_AGE_DAYS = 7
@@ -211,7 +220,7 @@ emit "cron_details" "$cron_details"
 
 # Non-malicious functional execution checks against a benign local system file.
 if command_exists clamscan; then
-    clamscan_output="$(timeout 60 clamscan --no-summary /etc/hosts 2>&1)"
+    clamscan_output="$(timeout --kill-after=__SCAN_KILL_GRACE_SECONDS__ __SCAN_TIMEOUT_SECONDS__ clamscan --no-summary /etc/hosts 2>&1)"
     clamscan_rc=$?
     emit "clamscan_test" "rc=${clamscan_rc}"$'\n'"${clamscan_output}"
 else
@@ -219,7 +228,7 @@ else
 fi
 
 if command_exists clamdscan; then
-    clamdscan_output="$(timeout 60 clamdscan --fdpass --no-summary /etc/hosts 2>&1)"
+    clamdscan_output="$(timeout --kill-after=__SCAN_KILL_GRACE_SECONDS__ __SCAN_TIMEOUT_SECONDS__ clamdscan --fdpass --no-summary /etc/hosts 2>&1)"
     clamdscan_rc=$?
     emit "clamdscan_test" "rc=${clamdscan_rc}"$'\n'"${clamdscan_output}"
 else
@@ -230,7 +239,9 @@ fi
 emit "freshclam_execution" "NOT_RUN_AIR_GAPPED_MANUAL_SIGNATURE_PROCESS"
 emit "collection_complete" "COMPLETE"
 exit 0
-"""
+""".replace("__SCAN_TIMEOUT_SECONDS__", str(SCAN_TIMEOUT_SECONDS)).replace(
+    "__SCAN_KILL_GRACE_SECONDS__", str(SCAN_KILL_GRACE_SECONDS)
+)
 
 
 def utc_now():
@@ -284,6 +295,27 @@ def decode_remote_output(raw_output):
             result[key] = ""
 
     return result
+
+
+def incomplete_collection(status, error, raw_output):
+    """Retain structured evidence without treating a partial response as complete."""
+    return {
+        "transport_status": status,
+        "error": error,
+        "data": decode_remote_output(raw_output),
+    }
+
+
+def stop_local_ssh(process):
+    """Reap the local process; this does not prove remote commands stopped."""
+    try:
+        process.kill()
+    except OSError:
+        pass
+    try:
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 def ssh_collect(host, username, password):
@@ -341,7 +373,7 @@ def ssh_collect(host, username, password):
     output = bytearray()
     ssh_password_sent = False
     sudo_password_sent = False
-    deadline = time.monotonic() + CONNECT_TIMEOUT_SECONDS
+    deadline = time.monotonic() + COLLECTION_TIMEOUT_SECONDS
 
     try:
         # Read until terminal EOF, not merely process exit. SSH can exit while
@@ -349,13 +381,13 @@ def ssh_collect(host, username, password):
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                process.kill()
-                return {
-                    "transport_status": "UNREACHABLE",
-                    "error": f"SSH/sudo collection exceeded {CONNECT_TIMEOUT_SECONDS} seconds.",
-                    "raw_output": output.decode("utf-8", errors="replace"),
-                    "data": {},
-                }
+                stop_local_ssh(process)
+                return incomplete_collection(
+                    "COLLECTION_TIMEOUT",
+                    f"Collection exceeded its {COLLECTION_TIMEOUT_SECONDS}-second total budget; "
+                    "remote command completion is unknown. Inspect before retrying.",
+                    output.decode("utf-8", errors="replace"),
+                )
 
             ready, _, _ = select.select([master_fd], [], [], min(1.0, remaining))
             if not ready:
@@ -392,13 +424,11 @@ def ssh_collect(host, username, password):
         process.wait(timeout=5)
 
     except Exception as exc:
-        process.kill()
-        return {
-            "transport_status": "ERROR",
-            "error": f"SSH collection error: {exc}",
-            "raw_output": output.decode("utf-8", errors="replace"),
-            "data": {},
-        }
+        stop_local_ssh(process)
+        return incomplete_collection(
+            "ERROR", f"SSH collection error: {exc}",
+            output.decode("utf-8", errors="replace"),
+        )
     finally:
         try:
             os.close(master_fd)
@@ -417,11 +447,12 @@ def ssh_collect(host, username, password):
         }
 
     if data:
-        return {
-            "transport_status": "ERROR",
-            "error": "Incomplete discovery response or unsuccessful SSH exit; do not use partial evidence.",
-            "data": {},
-        }
+        return incomplete_collection(
+            "INCOMPLETE",
+            "Incomplete discovery response or unsuccessful SSH exit; "
+            "retained evidence is partial and has not been assessed.",
+            raw_output,
+        )
 
     lower_output = raw_output.lower()
 
@@ -436,6 +467,9 @@ def ssh_collect(host, username, password):
         status = "UNREACHABLE"
     elif "connection refused" in lower_output or "no route to host" in lower_output:
         error = "SSH connection failed."
+        status = "UNREACHABLE"
+    elif "connection timed out" in lower_output or "operation timed out" in lower_output:
+        error = "SSH connection timed out before returning collection evidence."
         status = "UNREACHABLE"
     elif "clamav_sudo_prompt:" in lower_output:
         error = "sudo authentication or privilege escalation failed."
@@ -526,14 +560,18 @@ def assess(host, collected):
 
     if collected["transport_status"] != "SUCCESS":
         result["overall_status"] = collected["transport_status"]
+        result["evidence"] = collected.get("data", {})
+        result["collection_complete"] = False
         result["findings"].append({
-            "control": "REMOTE_ACCESS",
+            "control": ("COLLECTION_COMPLETENESS" if result["evidence"] or
+                        collected["transport_status"] == "COLLECTION_TIMEOUT" else "REMOTE_ACCESS"),
             "status": collected["transport_status"],
             "detail": collected["error"],
         })
         return result
 
     data = collected["data"]
+    result["collection_complete"] = True
     result["evidence"] = data
 
     os_release = data.get("os_release", "")
@@ -612,13 +650,25 @@ def assess(host, collected):
     elif "NOT_WRITABLE" in log_checks:
         failures.append("At least one configured ClamAV log path is not writable by the service user.")
 
-    clamscan_test = data.get("clamscan_test", "")
-    if not clamscan_test.startswith("rc=0"):
-        failures.append("clamscan functional scan of /etc/hosts did not complete successfully.")
-
-    clamdscan_test = data.get("clamdscan_test", "")
-    if not clamdscan_test.startswith("rc=0"):
-        failures.append("clamdscan functional scan of /etc/hosts did not complete successfully.")
+    scanner_results = {}
+    for scanner in ("clamscan", "clamdscan"):
+        record = data.get(f"{scanner}_test", "")
+        exit_record = record.splitlines()[0] if record else ""
+        if exit_record == "rc=0":
+            scanner_results[scanner] = "SUCCESS"
+        elif exit_record == "rc=124":
+            scanner_results[scanner] = "TIMEOUT"
+            failures.append(f"{scanner} exceeded its {SCAN_TIMEOUT_SECONDS}-second scan budget.")
+        elif exit_record == "rc=137":
+            scanner_results[scanner] = "KILLED"
+            failures.append(
+                f"{scanner} was killed, possibly after the {SCAN_KILL_GRACE_SECONDS}-second "
+                "timeout grace period; scan completion is unverified."
+            )
+        else:
+            scanner_results[scanner] = "NOT_INSTALLED" if record == "NOT_INSTALLED" else "FAILED"
+            failures.append(f"{scanner} functional scan of /etc/hosts did not complete successfully.")
+    result["evidence"]["scanner_results"] = scanner_results
 
     schedule = schedule_indicators(
         data.get("timer_details", ""),
@@ -696,7 +746,10 @@ def collect_with_retry(host, username, password):
         collected["attempt"] = attempt
         last = collected
 
-        if collected["transport_status"] == "SUCCESS":
+        # Retrying a started/incomplete collection can overlap a remote scanner
+        # that outlived the local SSH process and can overwrite partial evidence.
+        if (collected["transport_status"] not in {"UNREACHABLE", "INSUFFICIENT_PRIVILEGE"}
+                or collected.get("data")):
             return collected
 
         if attempt <= RETRIES:
@@ -781,6 +834,9 @@ def main():
             "requested_hosts": hosts,
             "max_workers": args.workers,
             "connect_timeout_seconds": CONNECT_TIMEOUT_SECONDS,
+            "scan_timeout_seconds": SCAN_TIMEOUT_SECONDS,
+            "scan_kill_grace_seconds": SCAN_KILL_GRACE_SECONDS,
+            "collection_timeout_seconds": COLLECTION_TIMEOUT_SECONDS,
             "retry_count": RETRIES,
             "signature_max_age_days": SIGNATURE_MAX_AGE_DAYS,
             "remote_actions": "READ_ONLY",
@@ -847,6 +903,8 @@ def main():
         "NOT_INSTALLED",
         "PARTIAL",
         "UNREACHABLE",
+        "COLLECTION_TIMEOUT",
+        "INCOMPLETE",
         "UNAUTHORIZED_OR_UNSUPPORTED_OS",
         "INSUFFICIENT_PRIVILEGE",
         "ERROR",
