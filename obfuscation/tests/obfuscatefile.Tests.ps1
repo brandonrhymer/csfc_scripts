@@ -88,7 +88,7 @@ function Assert-Success {
 function Assert-Failure {
     param($Result)
     Assert-True ($Result.ExitCode -ne 0) "Expected a nonzero exit code. Output: $($Result.Stdout)"
-    Assert-True ($Result.Stdout -notmatch '(?i)(obfuscation|redaction) complete') 'A failed operation reported completion.'
+    Assert-True ($Result.Stdout -notmatch '(?i)\b(?:Obfuscate|Redact) complete\.') 'A failed operation reported completion.'
 }
 
 function Test-Case {
@@ -105,6 +105,32 @@ function Test-Case {
 
 if (-not [System.IO.File]::Exists($script:Target)) {
     throw "Missing script: $script:Target"
+}
+
+foreach ($completion in @('Obfuscate complete.', 'Redact complete.')) {
+    Test-Case "failure assertion rejects '$completion'" {
+        $rejected = $false
+        try {
+            Assert-Failure ([pscustomobject]@{ ExitCode = 1; Stdout = "${completion}`n"; Stderr = 'Synthetic failure.' })
+        } catch {
+            $rejected = $_.Exception.Message -eq 'A failed operation reported completion.'
+        }
+        Assert-True $rejected 'The failure assertion accepted a real success message.'
+    }
+}
+
+Test-Case 'failure assertion accepts ordinary failure output' {
+    Assert-Failure ([pscustomobject]@{ ExitCode = 1; Stdout = 'Processing input.'; Stderr = 'Synthetic failure.' })
+}
+
+Test-Case 'failure assertion rejects a zero exit code' {
+    $rejected = $false
+    try {
+        Assert-Failure ([pscustomobject]@{ ExitCode = 0; Stdout = ''; Stderr = '' })
+    } catch {
+        $rejected = $_.Exception.Message -like 'Expected a nonzero exit code.*'
+    }
+    Assert-True $rejected 'The failure assertion accepted a zero exit code.'
 }
 
 foreach ($extension in @('txt', 'log', 'xml', 'conf', 'cfg', 'data', '')) {
