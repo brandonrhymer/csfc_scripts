@@ -32,10 +32,18 @@ bundles have a separate release cadence. Verify the downloaded package and its
 hashes before importing the script. Review the product runbook and the
 [pilot checklist](pilot-checklist.md) before executing even a preview.
 
+Follow the [Run Scripts console walkthrough](run-scripts.md) to import, define
+parameters, obtain independent approval, run Preview and reconcile results before
+Apply. In an individual product ZIP, this index also lists optional sibling
+products that are not included. Start with the selected product's packaged
+runbook; obtain another product separately to use it. Required common guidance
+is included in each applicable package.
+
 All scripts default to `Mode=Preview`. Apply is a separate, explicit selection.
 Their integer and string parameters suit MECM Run Scripts; do not edit the source
 to set an environment-specific policy. Run Scripts executes under the computer
-account. Use the normal script author, approver and runner roles.
+account. Configure the author/approver/runner permissions in the walkthrough;
+these names do not refer to automatically created security roles.
 
 The five application-specific products require validated local policies pinned
 by independently approved hashes. Read [application policy approval](policies.md).

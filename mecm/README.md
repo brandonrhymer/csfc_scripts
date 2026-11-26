@@ -15,6 +15,27 @@ Microsoft Configuration Manager (also called MECM) manages computers, applicatio
 
 This guide assumes a site with no internet connection. The connected WSUS server already serves another disconnected network. Export only its existing data. Do not change its products, languages, classifications, approvals, synchronization, or cleanup jobs for this toolkit. If required content is missing, arrange a separate download source with its owner.
 
+## Detailed procedures
+
+| Task | Guide |
+| --- | --- |
+| Confirm required software and setup rights | [Role prerequisites](docs/01-prepare.md#match-prerequisites-to-each-host) and [SQL/accounts](docs/sql-and-accounts.md) |
+| Prepare AD's System Management container | [AD publishing](docs/ad-publishing.md); this is separate from device discovery |
+| Configure role security | [PKI HTTPS or Enhanced HTTP](docs/communication-security.md) and [WSUS/SUP setup](docs/wsus-sup-setup.md) |
+| Discover and install one client | [Boundaries, discovery and onboarding](docs/client-onboarding.md) |
+| Acquire missing patches and diagnose progress | [Content acquisition](docs/offline-content-acquisition.md) and [verification checkpoints](docs/verification-checkpoints.md) |
+| Protect and update the site | [Backup/recovery](docs/backup-recovery.md) and [offline site servicing](docs/offline-site-servicing.md) |
+| Check role maintenance readiness | [Distribution point](../docs/maintenance/distribution-point.md) and [WSUS/SUP](../docs/maintenance/wsus-sup.md) |
+| Use the optional client maintenance products | [Client maintenance index](client-maintenance/README.md), including its Run Scripts walkthrough |
+
+**Individual ZIPs:** this index describes the full repository. An individual
+product package contains its selected script/runbook and required common guides;
+links to other scripts or client-maintenance products are optional sibling
+products and may not be present. Start with the package's selected runbook and
+obtain sibling products separately. Markdown links do not automatically include
+their targets in a package. The source guides were reviewed against Microsoft
+documentation on **2026-11-25**; recheck version-specific support before execution.
+
 ## Run a script
 
 1. Copy this directory to your approved administration workstation. Read the script and its guide first.

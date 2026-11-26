@@ -24,8 +24,10 @@ example in a ZIP does not approve its targets or make it active.
    SYSTEM. Keep untrusted users and the application itself from changing policy
    files or approved source configurations.
 5. Supply `PolicyPath` and `PolicySha256` as MECM parameters, with `Mode=Preview`.
-   Compare the output with the approved scope. Import and approval use the
-   normal MECM author, approver and runner roles; no script source edit is needed.
+   Compare the output with the approved scope. Use the
+   [Run Scripts walkthrough](run-scripts.md) for permissions, independent approval
+   and parameter entry. Enter the path/hash without surrounding quotes in the
+   console; values cannot contain apostrophes. No script source edit is needed.
 6. Apply only after the required pilot and change approval. If policy content,
    service identity, task definition or approved file content changes, review
    it again and pin the new approved hash. Never relax a rejection just to make
