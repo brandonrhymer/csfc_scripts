@@ -17,6 +17,8 @@ This guide assumes a site with no internet connection. The connected WSUS server
 
 ## Detailed procedures
 
+For the full operating lifecycle, use the [Configuration Manager operating guides](https://github.com/brandonrhymer/csfc_guides/blob/main/guides/mecm/README.md) in `csfc_guides`. The thirteen source-reviewed drafts cover architecture, operator access, collection targeting, client settings and health, content, production patching, applications, client lifecycle, reporting, site operations, inventory and conditional PKI maintenance. Installation and script-specific instructions remain here. Both sets require target-system validation before operational use.
+
 | Task | Guide |
 | --- | --- |
 | Confirm required software and setup rights | [Role prerequisites](docs/01-prepare.md#match-prerequisites-to-each-host) and [SQL/accounts](docs/sql-and-accounts.md) |
