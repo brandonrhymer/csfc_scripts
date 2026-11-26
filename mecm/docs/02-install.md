@@ -4,16 +4,17 @@
 
 For a new standalone primary site, follow Microsoft's [Setup wizard procedure](https://learn.microsoft.com/en-us/intune/configmgr/core/servers/deploy/install/setup-wizard-central-primary) with the completed stage 1 worksheet:
 
-1. Sign in with the approved setup account and launch `SMSSETUP\BIN\X64\setup.exe` from the selected baseline media.
+1. Verify [setup-account/SQL checks](sql-and-accounts.md), then sign in with the approved setup account and launch `SMSSETUP\BIN\X64\setup.exe` from the selected baseline media.
 2. Choose installation of a primary site. Choose standalone unless the approved design explicitly requires a hierarchy.
 3. Enter the approved license/evaluation choice. Accept terms only as authorized by your organization.
 4. Choose **Use previously downloaded files** and select the complete prerequisite folder transferred in stage 1.
 5. Enter the approved site code/name and installation folder. The examples use LAB and `C:\ConfigMgr`; do not reuse an existing site code for a second site.
 6. Enter the SQL server's fully qualified name. For a default instance, do not enter a fabricated named instance. Confirm database and SQL file locations with the SQL administrator.
 7. Choose the SMS Provider location. This component lets the console read and change the site.
-8. Configure management-point and distribution-point roles and communication security according to the approved certificate design. A management point delivers client policy; a distribution point stores installation files. Do not downgrade security to bypass a failed check.
+8. Configure management-point and distribution-point roles using the approved [PKI HTTPS or Enhanced HTTP branch](communication-security.md). A management point delivers client policy; a distribution point stores installation files. Verify remote-role installation rights before selecting remote hosts. Do not downgrade security to bypass a failed check.
 9. Choose the service connection point's **offline** mode for the disconnected site. This role handles site servicing; it is separate from WSUS patch imports.
-10. Run the prerequisite check. Resolve errors, review warnings, then begin installation. Save the result and logs.
+10. Run the prerequisite check. Resolve errors, review warnings, then begin installation. Wait for final Setup completion; the console can open read-only while installation continues. Save the result and logs.
+11. Complete the selected communication-security branch, [AD publishing](ad-publishing.md) if chosen, and the [verification checkpoints](verification-checkpoints.md). Confirm the site's actual database settings using the post-setup SQL queries.
 
 ## Verify the existing installation
 
